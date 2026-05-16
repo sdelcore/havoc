@@ -1,0 +1,15 @@
+FROM ros:jazzy-ros-base
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ros-jazzy-ros-gz \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+RUN echo 'source /opt/ros/jazzy/setup.bash' >> /root/.bashrc \
+ && echo 'if [ -f /workspace/install/setup.bash ]; then source /workspace/install/setup.bash; fi' >> /root/.bashrc
+
+CMD ["bash", "-lc", "echo 'havoc sim container ready'; sleep infinity"]
