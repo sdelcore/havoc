@@ -34,6 +34,25 @@ ros2 doctor
 gz sim --version    # should report Harmonic (8.x)
 ```
 
+## Build the ROS workspace
+
+The repo's `ros/` directory is bind-mounted at `/workspace` inside the
+container, so colcon builds land there and survive container restarts:
+
+```bash
+docker compose exec ros bash -lc 'cd /workspace && colcon build --symlink-install'
+```
+
+## Spawn the car in Gazebo
+
+```bash
+docker compose exec ros bash -lc \
+  'cd /workspace && source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
+```
+
+This loads `havoc.urdf.xacro`, starts Gazebo with an empty world, and
+spawns the car. No controller yet — it just sits there.
+
 ## Display forwarding
 
 The compose file forwards X11 so Gazebo's GUI can open from inside the
@@ -52,6 +71,7 @@ docker compose down
 
 ## Scope
 
-This directory contains cross-subsystem sim orchestration. The ROS-side
-sim artifacts (Gazebo worlds, URDF, bridge configs) live in
-`ros/src/havoc_sim` once that package exists.
+This directory contains cross-subsystem sim orchestration (the Docker
+images and compose file). ROS-side artifacts (URDF, launch files, etc.)
+live in `ros/src/havoc_description/` and are bind-mounted into the
+container.
