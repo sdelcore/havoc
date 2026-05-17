@@ -1,0 +1,18 @@
+FROM ros:jazzy-ros-base
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ros-jazzy-ros-gz \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Source ROS for both interactive (.bashrc) and login (/etc/profile.d) shells,
+# so `docker compose exec ros bash` and `docker compose exec ros bash -lc '...'`
+# both have ros2/gz on PATH.
+RUN printf 'source /opt/ros/jazzy/setup.bash\nif [ -f /workspace/install/setup.bash ]; then source /workspace/install/setup.bash; fi\n' \
+      | tee /etc/profile.d/ros.sh >> /root/.bashrc
+
+CMD ["bash", "-lc", "echo 'havoc sim container ready'; sleep infinity"]

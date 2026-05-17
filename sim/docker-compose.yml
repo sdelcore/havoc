@@ -1,0 +1,14 @@
+services:
+  ros:
+    build:
+      context: .
+      dockerfile: Dockerfile.ros
+    image: havoc-sim:ros-jazzy
+    container_name: havoc-sim-ros
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - XDG_RUNTIME_DIR=/tmp
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
