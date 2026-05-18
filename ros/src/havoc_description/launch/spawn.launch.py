@@ -14,6 +14,8 @@ def generate_launch_description():
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
     urdf_xacro = os.path.join(pkg_desc, 'urdf', 'havoc.urdf.xacro')
+    bridge_config = os.path.join(pkg_desc, 'config', 'ros_gz_bridge.yaml')
+
     robot_description = xacro.process_file(urdf_xacro).toxml()
 
     gz_sim = IncludeLaunchDescription(
@@ -38,4 +40,10 @@ def generate_launch_description():
         arguments=['-topic', 'robot_description', '-name', 'havoc', '-z', '0.1'],
     )
 
-    return LaunchDescription([gz_sim, robot_state_publisher, spawn])
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        parameters=[{'config_file': bridge_config}],
+    )
+
+    return LaunchDescription([gz_sim, robot_state_publisher, spawn, bridge])
