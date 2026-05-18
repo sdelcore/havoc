@@ -65,6 +65,24 @@ This is `spawn.launch.py` + a delayed `ros2 topic pub` that publishes a
 constant `Twist(linear.x=0.5, angular.z=0.5)`, giving roughly a 1 m
 radius circle.
 
+## Drive with the keyboard
+
+Two terminals — the teleop node needs an interactive TTY of its own.
+
+```bash
+# terminal 1: sim + bridge
+docker compose exec ros bash -lc \
+  'cd /workspace && source install/setup.bash && ros2 launch havoc_teleop teleop.launch.py'
+
+# terminal 2: keyboard driver
+docker compose exec -it ros bash -lc \
+  'source install/setup.bash && ros2 run teleop_twist_keyboard teleop_twist_keyboard'
+```
+
+Focus the second terminal and use `i`/`,` for forward/reverse, `j`/`l`
+for left/right, `k` to stop. Keys publish on `/cmd_vel`, the bridge
+forwards to Gazebo, and the ackermann plugin drives the car.
+
 ## Display forwarding
 
 The compose file forwards X11 so Gazebo's GUI can open from inside the
