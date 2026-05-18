@@ -50,8 +50,20 @@ docker compose exec ros bash -lc \
   'cd /workspace && source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
 ```
 
-This loads `havoc.urdf.xacro`, starts Gazebo with an empty world, and
-spawns the car. No controller yet — it just sits there.
+This loads `havoc.urdf.xacro`, starts Gazebo with an empty world,
+spawns the car, and starts the `ros_gz_bridge` so ROS `/cmd_vel`
+messages reach the in-Gazebo ackermann controller.
+
+## Drive in a circle
+
+```bash
+docker compose exec ros bash -lc \
+  'cd /workspace && source install/setup.bash && ros2 launch havoc_description circle.launch.py'
+```
+
+This is `spawn.launch.py` + a delayed `ros2 topic pub` that publishes a
+constant `Twist(linear.x=0.5, angular.z=0.5)`, giving roughly a 1 m
+radius circle.
 
 ## Display forwarding
 
