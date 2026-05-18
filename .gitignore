@@ -1,0 +1,11 @@
+# Colcon (ROS 2) workspace artifacts
+ros/build/
+ros/install/
+ros/log/
+
+# direnv
+.direnv/
+
+# Python
+__pycache__/
+*.pyc

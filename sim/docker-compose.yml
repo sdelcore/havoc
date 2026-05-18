@@ -12,3 +12,4 @@ services:
       - XDG_RUNTIME_DIR=/tmp
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ../ros:/workspace

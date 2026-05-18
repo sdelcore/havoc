@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="havoc">
+
+  <!-- 1/10 scale ackermann RC car, rough Tamiya-buggy proportions. -->
+  <xacro:property name="body_length" value="0.43"/>
+  <xacro:property name="body_width"  value="0.20"/>
+  <xacro:property name="body_height" value="0.10"/>
+  <xacro:property name="body_mass"   value="2.5"/>
+
+  <xacro:property name="wheel_radius" value="0.05"/>
+  <xacro:property name="wheel_width"  value="0.04"/>
+  <xacro:property name="wheel_mass"   value="0.15"/>
+
+  <xacro:property name="wheelbase" value="0.265"/>
+  <xacro:property name="track"     value="0.21"/>
+
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12.0}" ixy="0" ixz="0"
+               iyy="${m*(x*x+z*z)/12.0}" iyz="0"
+               izz="${m*(x*x+y*y)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cyl_inertia" params="m r l">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(3*r*r+l*l)/12.0}" ixy="0" ixz="0"
+               iyy="${m*(3*r*r+l*l)/12.0}" iyz="0"
+               izz="${m*r*r/2.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="wheel" params="name x y">
+    <link name="${name}_link">
+      <visual>
+        <origin rpy="1.5708 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="black"><color rgba="0.1 0.1 0.1 1"/></material>
+      </visual>
+      <collision>
+        <origin rpy="1.5708 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:cyl_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_width}"/>
+    </link>
+    <joint name="${name}_joint" type="continuous">
+      <parent link="base_link"/>
+      <child  link="${name}_link"/>
+      <origin xyz="${x} ${y} ${wheel_radius}"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${wheel_radius + body_height/2.0}"/>
+      <geometry><box size="${body_length} ${body_width} ${body_height}"/></geometry>
+      <material name="red"><color rgba="0.7 0.1 0.1 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${wheel_radius + body_height/2.0}"/>
+      <geometry><box size="${body_length} ${body_width} ${body_height}"/></geometry>
+    </collision>
+    <xacro:box_inertia m="${body_mass}" x="${body_length}" y="${body_width}" z="${body_height}"/>
+  </link>
+
+  <xacro:wheel name="front_left"  x="${ wheelbase/2.0}" y="${ track/2.0}"/>
+  <xacro:wheel name="front_right" x="${ wheelbase/2.0}" y="${-track/2.0}"/>
+  <xacro:wheel name="rear_left"   x="${-wheelbase/2.0}" y="${ track/2.0}"/>
+  <xacro:wheel name="rear_right"  x="${-wheelbase/2.0}" y="${-track/2.0}"/>
+
+</robot>
