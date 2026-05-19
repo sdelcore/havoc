@@ -37,6 +37,29 @@ west list                          # sanity check
 The Zephyr revision in `manifest/west.yml` must match `zephyr.url` in the
 top-level `flake.nix`. If you bump one, bump the other.
 
+## Verify the workspace (Zephyr's hello_world)
+
+Smoke test the toolchain by building one of Zephyr's bundled samples for
+`native_sim`:
+
+```bash
+cd mcu
+west build -b native_sim zephyr/samples/hello_world
+./build/zephyr/zephyr.exe        # Ctrl+C to stop
+```
+
+Expected output:
+
+```
+*** Booting Zephyr OS build v4.4.0 ***
+Hello World! native_sim/native
+```
+
+`west build -t run` would be the official way to launch the binary, but
+ninja captures the run target's output and only releases it when the
+subprocess exits — which Zephyr never does once it enters its idle loop.
+Invoking `zephyr.exe` directly shows the boot message immediately.
+
 ## Building an app (`native_sim`)
 
 Once apps exist under `app/`:
@@ -44,5 +67,5 @@ Once apps exist under `app/`:
 ```bash
 cd mcu
 west build -b native_sim app
-west build -t run
+./build/zephyr/zephyr.exe
 ```
