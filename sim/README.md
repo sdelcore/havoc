@@ -68,11 +68,14 @@ radius circle.
 ## Drive with the keyboard
 
 Two terminals — the teleop node needs an interactive TTY of its own.
+Terminal 1 brings up the same sim as the "Spawn the car in Gazebo"
+section; terminal 2 runs `teleop_twist_keyboard`, which publishes
+`Twist` on `/cmd_vel` for the existing bridge to forward.
 
 ```bash
 # terminal 1: sim + bridge
 docker compose exec ros bash -lc \
-  'cd /workspace && source install/setup.bash && ros2 launch havoc_teleop teleop.launch.py'
+  'cd /workspace && source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
 
 # terminal 2: keyboard driver
 docker compose exec -it ros bash -lc \
@@ -80,8 +83,7 @@ docker compose exec -it ros bash -lc \
 ```
 
 Focus the second terminal and use `i`/`,` for forward/reverse, `j`/`l`
-for left/right, `k` to stop. Keys publish on `/cmd_vel`, the bridge
-forwards to Gazebo, and the ackermann plugin drives the car.
+for left/right, `k` to stop.
 
 ## Display forwarding
 
