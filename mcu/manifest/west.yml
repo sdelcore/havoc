@@ -1,0 +1,23 @@
+# Havoc west manifest.
+#
+# Defines the Zephyr workspace pulled into ./mcu/ on `west update`.
+# The Zephyr revision here MUST match the `zephyr.url` pin in flake.nix
+# so the SDK and the source tree agree.
+#
+# Topology: T2 (manifest lives inside the workspace, at mcu/manifest/).
+# Workspace topdir is mcu/. After `west init -l manifest/ && west update`
+# you will see mcu/zephyr/, mcu/modules/, etc. populated.
+
+manifest:
+  remotes:
+    - name: upstream
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: upstream
+      revision: v4.4.0
+      import: true
+
+  self:
+    path: manifest
