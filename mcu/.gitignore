@@ -1,0 +1,13 @@
+# west workspace state - re-created by `west update`.
+.west/
+
+# Imported projects cloned by `west update`.
+# These live alongside the manifest but are not part of our git tree.
+zephyr/
+modules/
+tools/
+bootloader/
+test/
+
+# Build outputs.
+build/
