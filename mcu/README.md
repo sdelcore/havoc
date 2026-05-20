@@ -130,6 +130,24 @@ docker compose exec ros bash -lc '
 Zephyr should log `cmd_vel: linear.x=0.500000 angular.z=0.420000` at
 5 Hz.
 
+### Stall watchdog
+
+The firmware runs a 50 ms-period `k_timer` watchdog: if no `cmd_vel`
+message has arrived in `>200 ms`, the throttle is forced to 0 and a
+single `STALL` log line fires (state-transition logging — not
+spammed). When messages resume, a `cmd_vel recovered` line fires.
+
+To trigger it manually: stop the publisher mid-stream. Within ~250 ms
+Zephyr will log:
+
+```
+<wrn> havoc_mcu: STALL - throttle zeroed (no cmd_vel for 230 ms)
+```
+
+This is the architectural promise from the top-level README: Linux
+can crash, the ROS graph can deadlock, the network can drop - the car
+should coast to a stop, not run open-loop.
+
 Verify with `ros2 topic echo` from the ros container:
 
 ```bash
