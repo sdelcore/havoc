@@ -46,11 +46,13 @@ RUN wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZE
 WORKDIR /workspace
 
 # Do NOT source /opt/ros/jazzy/setup.bash here even though the base image
-# is ros:jazzy. Sourcing it adds /opt/ros/jazzy to CMAKE_PREFIX_PATH, and
-# during the colcon-driven libmicroros build CMake's find_package then
-# locates ROS Jazzy's rosidl_typesupport_fastrtps_c (which requires
-# fastcdr v2, which isn't installed). The micro-ROS Zephyr build wants
-# its own private toolchain, not the system ROS one.
+# is ros:jazzy. Sourcing it prepends /opt/ros/jazzy to CMAKE_PREFIX_PATH,
+# and the libmicroros build's colcon-driven find_package calls then
+# resolve to ROS Jazzy's system packages (e.g. rosidl_typesupport_fastrtps_c,
+# which requires fastcdr v2) instead of the self-contained micro-ROS
+# package set that libmicroros.mk just built in micro_ros_dev/install.
+# micro-ROS uses micro-CDR, not Fast DDS, so the system fastrtps configs
+# are an active hazard - they pull in deps that aren't installed.
 #
 # colcon itself comes from pip (see above) and is on PATH independent of
 # ROS sourcing. We rely on ros:jazzy-base for the Ubuntu + apt-installed
