@@ -64,4 +64,10 @@ WORKDIR /workspace
 # container where the user is always root.
 RUN git config --global --add safe.directory '*'
 
+# Entrypoint creates the zeth TAP that native_sim's eth_native_tap
+# driver attaches to. Without it, every `zephyr.exe` invocation logs
+# "Cannot create zeth (-2/No such file or directory)" and silently
+# disables networking.
+COPY zephyr-entrypoint.sh /usr/local/bin/zephyr-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/zephyr-entrypoint.sh"]
 CMD ["bash", "-lc", "echo 'havoc zephyr container ready'; sleep infinity"]

@@ -81,31 +81,25 @@ the micro-ROS UDP transport. The path is:
 Zephyr binary  --UDP/zeth-->  micro-ROS agent  --DDS-->  ROS 2 graph
 ```
 
-Three pieces are needed:
+Two pieces are needed; the third (zeth TAP) is auto-created by the
+container's entrypoint:
 
-1. **`zeth` TAP interface.** Native_sim's `eth_native_tap` driver attaches
-   to a host-side TAP named `zeth` (192.0.2.0/24, host = 192.0.2.2,
-   Zephyr = 192.0.2.1). Create it once from inside the zephyr container:
+1. **Agent.** `microros-agent` compose service runs
+   `microros/micro-ros-agent:jazzy` and listens on UDP `:8888`.
+   `docker compose up -d microros-agent` starts it.
 
-   ```bash
-   docker compose exec zephyr bash -lc '
-     ip tuntap add dev zeth mode tap
-     ip addr add 192.0.2.2/24 dev zeth
-     ip link set dev zeth up'
-   ```
-
-   The container has `NET_ADMIN` + `/dev/net/tun` from the compose file.
-   The TAP persists across container exec sessions; recreate on restart.
-
-2. **Agent.** `microros-agent` compose service runs `microros/micro-ros-agent:jazzy`,
-   listens on UDP `:8888`. `docker compose up -d microros-agent` starts it.
-
-3. **Zephyr binary.**
+2. **Zephyr binary.**
    ```bash
    docker compose exec zephyr /workspace/build/zephyr/zephyr.exe
    ```
-   On boot it overrides `default_params.ip = "192.0.2.2"` (from
-   `CONFIG_MICROROS_AGENT_IP`) and opens the UDP transport.
+   On boot the binary overrides `default_params.ip = "192.0.2.2"`
+   (from `CONFIG_MICROROS_AGENT_IP`) and opens the UDP transport.
+
+The `zeth` TAP interface (192.0.2.0/24, host = 192.0.2.2, Zephyr =
+192.0.2.1) is created automatically by `sim/zephyr-entrypoint.sh`
+the first time the zephyr container starts. The container has
+`NET_ADMIN` + `/dev/net/tun` from the compose file so the script
+can call `ip tuntap`.
 
 Verify with `ros2 topic echo` from the ros container:
 
