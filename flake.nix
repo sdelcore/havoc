@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    zephyr.url = "github:zephyrproject-rtos/zephyr/v4.4.0";
+    zephyr.url = "github:zephyrproject-rtos/zephyr/v4.1.0";
     zephyr.flake = false;
 
     zephyr-nix.url = "github:nix-community/zephyr-nix";
@@ -33,7 +33,7 @@
         ];
 
         shellHook = ''
-          echo "havoc dev shell - Zephyr v4.4.0 (arm-zephyr-eabi + native_sim)"
+          echo "havoc dev shell - Zephyr v4.1.0 (arm-zephyr-eabi + native_sim)"
         '';
       };
     };

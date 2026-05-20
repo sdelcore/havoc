@@ -13,3 +13,13 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ../ros:/workspace
+
+  zephyr:
+    build:
+      context: .
+      dockerfile: Dockerfile.zephyr
+    image: havoc-sim:zephyr
+    container_name: havoc-sim-zephyr
+    network_mode: host
+    volumes:
+      - ../mcu:/workspace

@@ -4,9 +4,22 @@ Real-time firmware for the SAM E70 (Cortex-M7) that handles PWM, encoders,
 IMU fusion, the `/cmd_vel` stall watchdog, and manual RC override. See the
 top-level README for the split-compute rationale.
 
-Toolchain comes from `flake.nix` — always work inside `nix develop`. The
-flake pins Zephyr v4.4.0 and provides `west`, the SDK, CMake, ninja, and
-the Zephyr Python env.
+The flake pins Zephyr v4.1.0. The v4.1 pin is forced by
+`micro_ros_zephyr_module` officially supporting up to Zephyr 4.1 only
+(upstream issue #158).
+
+## Build environment
+
+Two contexts:
+
+- **`nix develop` (host)** — provides `west`, the Zephyr Python env, and
+  basic toolchain. Used for `west init` / `west update` / `west list` and
+  general workspace queries.
+- **`docker compose exec zephyr` (container)** — `sim/Dockerfile.zephyr`
+  layers the Zephyr SDK + colcon + micro-ROS Python deps onto the ROS
+  Jazzy base. All actual builds happen here. `nix` is too far from the
+  micro-ROS build environment (no colcon-cmake plugin, glibc layout
+  mismatches) — fighting that was an early dead end.
 
 ## Workspace layout
 
@@ -18,56 +31,58 @@ mcu/
 ├── manifest/west.yml   # the manifest - what to clone (committed)
 ├── .west/              # workspace marker + local config (gitignored)
 ├── zephyr/             # Zephyr source, cloned by `west update` (gitignored)
-├── modules/            # HALs, libs, samples deps (gitignored)
-└── app/                # our applications
+├── modules/            # HALs, libs, micro-ROS fork (gitignored)
+└── app/                # our application sources
 ```
 
 Only `manifest/west.yml`, the per-app sources, and this README are tracked
-in git. Everything else is reproducible from the manifest.
+in git.
 
 ## First-time bootstrap
 
 ```bash
-nix develop                        # in repo root
-cd mcu
-west update                        # clones zephyr + imported modules (~2 GB)
-west list                          # sanity check
+# In repo root - one-time docker image build:
+cd sim && docker compose build zephyr && cd ..
+
+# Clone Zephyr + dependencies into mcu/ (uses host west, ~8 GB of repos):
+nix develop --command bash -lc 'cd mcu && west init -l manifest/ && west update'
 ```
 
 The Zephyr revision in `manifest/west.yml` must match `zephyr.url` in the
 top-level `flake.nix`. If you bump one, bump the other.
 
-## Verify the workspace (Zephyr's hello_world)
+The manifest also pins **forks** of `micro_ros_zephyr_module` and (via the
+module's own makefile) `rcutils`, both at `fix-native-sim` branches.
+These forks carry the patches needed for `native_sim` to compile - upstream
+only supports cross-compile targets like `disco_l475_iot1`. The patches
+live on `sdelcore/micro_ros_zephyr_module` and `sdelcore/rcutils`; we'll
+revert to upstream when the issues / PRs land.
 
-Smoke test the toolchain by building one of Zephyr's bundled samples for
-`native_sim`:
+## Building the app
 
-```bash
-cd mcu
-west build -b native_sim zephyr/samples/hello_world
-./build/zephyr/zephyr.exe        # Ctrl+C to stop
-```
-
-Expected output:
-
-```
-*** Booting Zephyr OS build v4.4.0 ***
-Hello World! native_sim/native
-```
-
-`west build -t run` would be the official way to launch the binary, but
-ninja captures the run target's output and only releases it when the
-subprocess exits — which Zephyr never does once it enters its idle loop.
-Invoking `zephyr.exe` directly shows the boot message immediately.
-
-## Building the app (`native_sim`)
+All builds happen inside the zephyr container:
 
 ```bash
-cd mcu
-west build -b native_sim app
-./build/zephyr/zephyr.exe
+docker compose -f sim/docker-compose.yml up -d zephyr
+docker compose -f sim/docker-compose.yml exec zephyr bash -lc \
+  'cd /workspace && west build -b native_sim app -p'
+./mcu/build/zephyr/zephyr.exe                # run on host
 ```
 
-The current `app/` is a counter that logs `count=N` every 100 ms. It
-will grow as new behavior lands (micro-ROS, cmd_vel subscriber, stall
-watchdog).
+Expected boot log:
+
+```
+*** Booting Zephyr OS build v4.1.0 ***
+[00:00:00.000,000] <inf> havoc_mcu: havoc_mcu starting
+[00:00:00.000,000] <inf> havoc_mcu: count=0
+[00:00:00.110,000] <inf> havoc_mcu: count=1
+...
+```
+
+The binary statically links `libmicroros.a` and the UDP transport, but
+`main.c` doesn't call any micro-ROS APIs yet - proving the link is M3's
+scope; publishers / subscribers / executor wiring come in M4+.
+
+`west build -t run` aggressively buffers the run target's stdout (ninja
+holds it until the subprocess exits, which Zephyr never does) - run
+`zephyr.exe` directly on the host instead.
