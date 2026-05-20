@@ -60,12 +60,14 @@ ninja captures the run target's output and only releases it when the
 subprocess exits — which Zephyr never does once it enters its idle loop.
 Invoking `zephyr.exe` directly shows the boot message immediately.
 
-## Building an app (`native_sim`)
-
-Once apps exist under `app/`:
+## Building the app (`native_sim`)
 
 ```bash
 cd mcu
 west build -b native_sim app
 ./build/zephyr/zephyr.exe
 ```
+
+The current `app/` is a counter that logs `count=N` every 100 ms. It
+will grow as new behavior lands (micro-ROS, cmd_vel subscriber, stall
+watchdog).
