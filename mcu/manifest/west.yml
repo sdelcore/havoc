@@ -12,6 +12,10 @@ manifest:
   remotes:
     - name: upstream
       url-base: https://github.com/zephyrproject-rtos
+    - name: microros
+      url-base: https://github.com/micro-ROS
+    - name: havoc-fork
+      url-base: https://github.com/sdelcore
 
   projects:
     - name: zephyr
@@ -23,11 +27,25 @@ manifest:
       import:
         name-allowlist:
           - cmsis           # ARM CMSIS, generally referenced by Zephyr's core
-          - cmsis_6         # newer CMSIS, used by some v4.4+ subsystems
+          - cmsis_6         # newer CMSIS, referenced by some Zephyr subsystems
           - hal_atmel       # SAM E70 - phase 3 of the Zephyr plan
           - picolibc        # default Zephyr libc
           - mbedtls         # transport-layer crypto, micro-ROS dep
           - segger          # RTT logging - useful on real hardware
+
+    # micro-ROS client + transports. The repo bundles a sample app at its
+    # root - we only want the modules/libmicroros subdir, wired up via
+    # ZEPHYR_EXTRA_MODULES in app/CMakeLists.txt.
+    #
+    # Pointed at sdelcore/micro_ros_zephyr_module@fix-native-sim, a fork
+    # carrying patches that let native_sim link: (1) skip CMAKE_SYSROOT
+    # override on host gcc and (2) clone rcutils from sdelcore/rcutils,
+    # which itself carries a time_unix.c patch for the same target. Will
+    # revert to upstream jazzy if/when those PRs land upstream (issue #158).
+    - name: micro_ros_zephyr_module
+      remote: havoc-fork
+      revision: fix-native-sim
+      path: modules/micro_ros_zephyr_module
 
   self:
     path: manifest

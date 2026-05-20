@@ -1,0 +1,66 @@
+# Zephyr + micro-ROS build environment.
+#
+# Layered on the ROS Jazzy base so colcon, ament_cmake, and the rest of the
+# ROS toolchain are already present - micro_ros_zephyr_module shells out
+# to all of those during its build. Adding a separate non-ROS image would
+# mean reinstalling colcon-common-extensions from pip, which is what we
+# were trying to escape from on the nix side.
+
+FROM ros:jazzy-ros-base
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV ZEPHYR_SDK_VERSION=1.0.1
+ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}
+
+# Zephyr build dependencies (per https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
+# plus 32-bit multilib for native_sim's i686 target.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      git cmake ninja-build gperf ccache dfu-util device-tree-compiler wget \
+      python3-dev python3-pip python3-setuptools python3-wheel python3-venv \
+      xz-utils file make gcc g++ gcc-multilib g++-multilib \
+      libsdl2-dev libmagic1 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Python tooling. --break-system-packages bypasses PEP 668 - acceptable
+# inside a throwaway container. west and the *yaml/elf/kwalify trio are
+# Zephyr's; the others (catkin_pkg, lark, empy) are imported by the
+# micro-ROS build scripts at runtime.
+RUN pip3 install --no-cache-dir --break-system-packages \
+      west \
+      pyelftools \
+      pyyaml \
+      pykwalify \
+      jsonschema \
+      catkin_pkg \
+      lark-parser \
+      empy
+
+# Zephyr SDK (minimal: only ARM target + host tools).
+RUN wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz \
+ && tar -xJf zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz -C /opt \
+ && rm zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz \
+ && cd ${ZEPHYR_SDK_INSTALL_DIR} \
+ && ./setup.sh -t arm-zephyr-eabi -h -c
+
+WORKDIR /workspace
+
+# Do NOT source /opt/ros/jazzy/setup.bash here even though the base image
+# is ros:jazzy. Sourcing it prepends /opt/ros/jazzy to CMAKE_PREFIX_PATH,
+# and the libmicroros build's colcon-driven find_package calls then
+# resolve to ROS Jazzy's system packages (e.g. rosidl_typesupport_fastrtps_c,
+# which requires fastcdr v2) instead of the self-contained micro-ROS
+# package set that libmicroros.mk just built in micro_ros_dev/install.
+# micro-ROS uses micro-CDR, not Fast DDS, so the system fastrtps configs
+# are an active hazard - they pull in deps that aren't installed.
+#
+# colcon itself comes from pip (see above) and is on PATH independent of
+# ROS sourcing. We rely on ros:jazzy-base for the Ubuntu + apt-installed
+# build tools, not for ROS itself.
+
+# Bind-mounted /workspace is host-owned; git would refuse to operate on
+# it from inside the container without this. Wildcard is fine for a dev
+# container where the user is always root.
+RUN git config --global --add safe.directory '*'
+
+CMD ["bash", "-lc", "echo 'havoc zephyr container ready'; sleep infinity"]
