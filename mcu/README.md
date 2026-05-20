@@ -67,10 +67,17 @@ docker compose exec zephyr bash -lc \
   'cd /workspace && west build -b native_sim/native/64 app -p'
 ```
 
-The board target is **`native_sim/native/64`**, not plain `native_sim`.
-The default native_sim is i686 (-m32), which makes gcc emit
-`__x86.get_pc_thunk.bx` thunks that native_sim's link-time
-`--gc-sections` discards - a 32-bit-only problem.
+We target `native_sim/native/64` (64-bit host build) rather than the
+default i686 variant. The default 32-bit native_sim runs into an
+unresolvable link error: gcc emits `__x86.get_pc_thunk.bx` as a COMDAT
+PIC helper in libmicroros, native_sim's two-stage link discards the
+section in its final pass, and ld then errors that the callers
+reference a discarded section. None of `-Wl,--no-gc-sections`,
+`--undefined=`, or explicit thunk reference workarounds anchored the
+section across the two-stage link, so we accept the 64-bit host
+target. 32-bit type-size coverage will come back when we build for
+`qemu_cortex_m3` or the real SAM E70 (both genuine 32-bit ARM
+cross-compile targets).
 
 ## Running end-to-end (publisher + agent + ROS)
 
