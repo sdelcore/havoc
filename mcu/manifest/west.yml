@@ -20,7 +20,7 @@ manifest:
   projects:
     - name: zephyr
       remote: upstream
-      revision: v4.1.0
+      revision: v4.4.0
       # name-allowlist keeps the workspace small. Add modules here as new
       # milestones need them. The build will fail loudly if something we
       # actually depend on is missing - that's the cue to add it.

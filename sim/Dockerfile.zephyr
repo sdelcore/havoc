@@ -9,7 +9,7 @@
 FROM ros:jazzy-ros-base
 
 ARG DEBIAN_FRONTEND=noninteractive
-ENV ZEPHYR_SDK_VERSION=0.17.4
+ENV ZEPHYR_SDK_VERSION=1.0.1
 ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}
 
 # Zephyr build dependencies (per https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
@@ -45,10 +45,16 @@ RUN wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZE
 
 WORKDIR /workspace
 
-# Source ROS in both interactive and login shells so colcon + ament are
-# always on PATH. Mirrors the pattern in Dockerfile.ros.
-RUN printf 'source /opt/ros/jazzy/setup.bash\n' \
-      | tee /etc/profile.d/ros.sh >> /root/.bashrc
+# Do NOT source /opt/ros/jazzy/setup.bash here even though the base image
+# is ros:jazzy. Sourcing it adds /opt/ros/jazzy to CMAKE_PREFIX_PATH, and
+# during the colcon-driven libmicroros build CMake's find_package then
+# locates ROS Jazzy's rosidl_typesupport_fastrtps_c (which requires
+# fastcdr v2, which isn't installed). The micro-ROS Zephyr build wants
+# its own private toolchain, not the system ROS one.
+#
+# colcon itself comes from pip (see above) and is on PATH independent of
+# ROS sourcing. We rely on ros:jazzy-base for the Ubuntu + apt-installed
+# build tools, not for ROS itself.
 
 # Bind-mounted /workspace is host-owned; git would refuse to operate on
 # it from inside the container without this. Wildcard is fine for a dev

@@ -4,9 +4,10 @@ Real-time firmware for the SAM E70 (Cortex-M7) that handles PWM, encoders,
 IMU fusion, the `/cmd_vel` stall watchdog, and manual RC override. See the
 top-level README for the split-compute rationale.
 
-The flake pins Zephyr v4.1.0. The v4.1 pin is forced by
-`micro_ros_zephyr_module` officially supporting up to Zephyr 4.1 only
-(upstream issue #158).
+The flake pins Zephyr **v4.4.0** (latest at time of writing). Upstream
+`micro_ros_zephyr_module` officially supports up to v4.1 (issue #158);
+we run on v4.4 by patching the relevant header-path and CONFIG_ARCH_POSIX
+gaps in our forks of `micro_ros_zephyr_module` and `rcutils`.
 
 ## Build environment
 
@@ -72,7 +73,7 @@ docker compose -f sim/docker-compose.yml exec zephyr bash -lc \
 Expected boot log:
 
 ```
-*** Booting Zephyr OS build v4.1.0 ***
+*** Booting Zephyr OS build v4.4.0 ***
 [00:00:00.000,000] <inf> havoc_mcu: havoc_mcu starting
 [00:00:00.000,000] <inf> havoc_mcu: count=0
 [00:00:00.110,000] <inf> havoc_mcu: count=1
