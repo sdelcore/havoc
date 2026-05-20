@@ -14,6 +14,13 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ../ros:/workspace
 
+  microros-agent:
+    image: microros/micro-ros-agent:jazzy
+    container_name: havoc-sim-microros-agent
+    network_mode: host
+    command: udp4 --port 8888 -v6
+    restart: unless-stopped
+
   zephyr:
     build:
       context: .
@@ -21,5 +28,9 @@ services:
     image: havoc-sim:zephyr
     container_name: havoc-sim-zephyr
     network_mode: host
+    cap_add:
+      - NET_ADMIN   # for creating the zeth TAP interface native_sim wants
     volumes:
       - ../mcu:/workspace
+    devices:
+      - /dev/net/tun
