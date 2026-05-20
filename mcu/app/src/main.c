@@ -9,6 +9,7 @@
 #include <rclc/executor.h>
 #include <rmw_microros/rmw_microros.h>
 #include <std_msgs/msg/int32.h>
+#include <geometry_msgs/msg/twist.h>
 
 #include <microros_transports.h>
 
@@ -29,8 +30,11 @@ LOG_MODULE_REGISTER(havoc_mcu, LOG_LEVEL_INF);
 	} \
 }
 
-static rcl_publisher_t publisher;
-static std_msgs__msg__Int32 msg;
+static rcl_publisher_t counter_pub;
+static std_msgs__msg__Int32 counter_msg;
+
+static rcl_subscription_t cmd_vel_sub;
+static geometry_msgs__msg__Twist cmd_vel_msg;
 
 static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
@@ -38,14 +42,22 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 	if (timer == NULL) {
 		return;
 	}
-	RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
-	LOG_INF("published count=%d", msg.data);
-	msg.data++;
+	RCSOFTCHECK(rcl_publish(&counter_pub, &counter_msg, NULL));
+	counter_msg.data++;
+}
+
+static void cmd_vel_callback(const void *msgin)
+{
+	const geometry_msgs__msg__Twist *m = msgin;
+	// Real firmware will translate this to PWM. For M5, just log what
+	// arrived - proves the wire path from ROS through the agent to here.
+	LOG_INF("cmd_vel: linear.x=%f angular.z=%f",
+		m->linear.x, m->angular.z);
 }
 
 int main(void)
 {
-	LOG_INF("havoc_mcu starting (micro-ROS Int32 publisher)");
+	LOG_INF("havoc_mcu starting (micro-ROS publisher + cmd_vel subscriber)");
 
 	// default_params is defined in microros_transports.h with a hardcoded
 	// "192.168.1.100" - the upstream module's Kconfig knob doesn't actually
@@ -74,10 +86,16 @@ int main(void)
 	RCCHECK(rclc_node_init_default(&node, "havoc_mcu", "", &support));
 
 	RCCHECK(rclc_publisher_init_default(
-		&publisher,
+		&counter_pub,
 		&node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
 		"havoc_counter"));
+
+	RCCHECK(rclc_subscription_init_default(
+		&cmd_vel_sub,
+		&node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
+		"cmd_vel"));
 
 	rcl_timer_t timer;
 	RCCHECK(rclc_timer_init_default(
@@ -86,11 +104,16 @@ int main(void)
 		RCL_MS_TO_NS(1000),
 		timer_callback));
 
+	// Executor needs one handle slot per timer + subscription. We have
+	// one of each, so reserve 2.
 	rclc_executor_t executor;
-	RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+	RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
 	RCCHECK(rclc_executor_add_timer(&executor, &timer));
+	RCCHECK(rclc_executor_add_subscription(
+		&executor, &cmd_vel_sub, &cmd_vel_msg,
+		cmd_vel_callback, ON_NEW_DATA));
 
-	msg.data = 0;
+	counter_msg.data = 0;
 
 	while (1) {
 		rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));

@@ -81,8 +81,9 @@ cross-compile targets).
 
 ## Running end-to-end (publisher + agent + ROS)
 
-`mcu/app/` publishes `std_msgs/Int32` on `/havoc_counter` at 1 Hz via
-the micro-ROS UDP transport. The path is:
+`mcu/app/` publishes `std_msgs/Int32` on `/havoc_counter` at 1 Hz and
+subscribes to `geometry_msgs/Twist` on `/cmd_vel` (logging linear.x /
+angular.z) via the micro-ROS UDP transport. The path is:
 
 ```
 Zephyr binary  --UDP/zeth-->  micro-ROS agent  --DDS-->  ROS 2 graph
@@ -107,6 +108,27 @@ The `zeth` TAP interface (192.0.2.0/24, host = 192.0.2.2, Zephyr =
 the first time the zephyr container starts. The container has
 `NET_ADMIN` + `/dev/net/tun` from the compose file so the script
 can call `ip tuntap`.
+
+### Verify with ros2 topic
+
+Counter publisher:
+
+```bash
+docker compose exec ros bash -lc \
+  'source /opt/ros/jazzy/setup.bash && ros2 topic echo /havoc_counter'
+```
+
+Twist subscriber - publish a Twist and watch the Zephyr log:
+
+```bash
+docker compose exec ros bash -lc '
+  source /opt/ros/jazzy/setup.bash &&
+  ros2 topic pub --rate 5 /cmd_vel geometry_msgs/msg/Twist \
+    "{linear: {x: 0.5}, angular: {z: 0.42}}"'
+```
+
+Zephyr should log `cmd_vel: linear.x=0.500000 angular.z=0.420000` at
+5 Hz.
 
 Verify with `ros2 topic echo` from the ros container:
 
