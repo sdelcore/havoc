@@ -1,5 +1,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 
 #include <string.h>
 
@@ -30,11 +31,62 @@ LOG_MODULE_REGISTER(havoc_mcu, LOG_LEVEL_INF);
 	} \
 }
 
+// --- micro-ROS handles -------------------------------------------------
+
 static rcl_publisher_t counter_pub;
 static std_msgs__msg__Int32 counter_msg;
 
 static rcl_subscription_t cmd_vel_sub;
 static geometry_msgs__msg__Twist cmd_vel_msg;
+
+// --- Stall watchdog ----------------------------------------------------
+// Architectural promise: if cmd_vel stops arriving, zero the throttle.
+// The companion (Pi / Orin) can crash, the ROS graph can deadlock, the
+// network can drop - the car should coast to a stop, not run open-loop.
+
+#define STALL_THRESHOLD_MS  200
+#define WATCHDOG_PERIOD_MS   50
+
+// 32-bit millisecond timestamp from k_uptime_get_32. Atomic reads/writes
+// on 32-bit values are inherently safe on all Zephyr-supported arches,
+// so atomic_t (which is sized for the pointer width) is more than enough.
+static atomic_t last_cmd_vel_ms;
+
+// The current commanded throttle. On real hardware this will be a PWM
+// duty cycle written to the ESC; for now it's just a value the watchdog
+// can zero.
+static float current_throttle = 0.0f;
+static float current_steering = 0.0f;
+
+// Has the watchdog already logged that we're in a stall? Prevents
+// spamming the log every WATCHDOG_PERIOD_MS while stalled.
+static bool watchdog_in_stall = false;
+
+static void watchdog_check(struct k_timer *timer)
+{
+	ARG_UNUSED(timer);
+
+	uint32_t last = (uint32_t)atomic_get(&last_cmd_vel_ms);
+	uint32_t now = k_uptime_get_32();
+	uint32_t age_ms = now - last;
+
+	if (age_ms > STALL_THRESHOLD_MS) {
+		current_throttle = 0.0f;
+		current_steering = 0.0f;
+		if (!watchdog_in_stall) {
+			watchdog_in_stall = true;
+			LOG_WRN("STALL - throttle zeroed (no cmd_vel for %u ms)",
+				age_ms);
+		}
+	} else if (watchdog_in_stall) {
+		watchdog_in_stall = false;
+		LOG_INF("cmd_vel recovered, watchdog clear");
+	}
+}
+
+K_TIMER_DEFINE(watchdog_timer, watchdog_check, NULL);
+
+// --- ROS callbacks -----------------------------------------------------
 
 static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
@@ -49,21 +101,26 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 static void cmd_vel_callback(const void *msgin)
 {
 	const geometry_msgs__msg__Twist *m = msgin;
-	// Real firmware will translate this to PWM. For M5, just log what
-	// arrived - proves the wire path from ROS through the agent to here.
-	LOG_INF("cmd_vel: linear.x=%f angular.z=%f",
-		m->linear.x, m->angular.z);
+
+	// Latch the commanded values - what the firmware would drive if no
+	// stall. The watchdog reads/writes these from a separate context.
+	current_throttle = (float)m->linear.x;
+	current_steering = (float)m->angular.z;
+
+	// Mark "alive" for the watchdog. Order matters: the assignments
+	// above happen before the watchdog can possibly clear them on its
+	// next tick (worst case ~WATCHDOG_PERIOD_MS later).
+	atomic_set(&last_cmd_vel_ms, (atomic_val_t)k_uptime_get_32());
 }
 
 int main(void)
 {
-	LOG_INF("havoc_mcu starting (micro-ROS publisher + cmd_vel subscriber)");
+	LOG_INF("havoc_mcu starting (publisher + cmd_vel subscriber + watchdog)");
 
-	// default_params is defined in microros_transports.h with a hardcoded
-	// "192.168.1.100" - the upstream module's Kconfig knob doesn't actually
-	// propagate to the transport's default_params struct. Override here
-	// from CONFIG_MICROROS_AGENT_IP / _PORT so prj.conf is the source of
-	// truth.
+	// Bootstrap the watchdog timestamp to "now" so the watchdog doesn't
+	// fire immediately at startup before any cmd_vel has arrived.
+	atomic_set(&last_cmd_vel_ms, (atomic_val_t)k_uptime_get_32());
+
 	strncpy(default_params.ip, CONFIG_MICROROS_AGENT_IP,
 		sizeof(default_params.ip) - 1);
 	strncpy(default_params.port, CONFIG_MICROROS_AGENT_PORT,
@@ -104,8 +161,6 @@ int main(void)
 		RCL_MS_TO_NS(1000),
 		timer_callback));
 
-	// Executor needs one handle slot per timer + subscription. We have
-	// one of each, so reserve 2.
 	rclc_executor_t executor;
 	RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
 	RCCHECK(rclc_executor_add_timer(&executor, &timer));
@@ -114,6 +169,12 @@ int main(void)
 		cmd_vel_callback, ON_NEW_DATA));
 
 	counter_msg.data = 0;
+
+	// Start the watchdog. Fires every WATCHDOG_PERIOD_MS, no initial
+	// delay. The reload arg matches the duration so it runs forever.
+	k_timer_start(&watchdog_timer,
+		      K_MSEC(WATCHDOG_PERIOD_MS),
+		      K_MSEC(WATCHDOG_PERIOD_MS));
 
 	while (1) {
 		rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
