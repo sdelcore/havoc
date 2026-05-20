@@ -39,12 +39,6 @@ static std_msgs__msg__Int32 counter_msg;
 static rcl_subscription_t cmd_vel_sub;
 static geometry_msgs__msg__Twist cmd_vel_msg;
 
-// /havoc_cmd_actual: what the firmware is actually driving after the
-// watchdog has its say. ROS subscribes here to see real behavior - in
-// stall this is zero even if /cmd_vel is still being published.
-static rcl_publisher_t cmd_actual_pub;
-static geometry_msgs__msg__Twist cmd_actual_msg;
-
 // --- Stall watchdog ----------------------------------------------------
 // Architectural promise: if cmd_vel stops arriving, zero the throttle.
 // The companion (Pi / Orin) can crash, the ROS graph can deadlock, the
@@ -104,20 +98,6 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 	counter_msg.data++;
 }
 
-static void cmd_actual_timer_callback(rcl_timer_t *timer, int64_t last_call_time)
-{
-	ARG_UNUSED(last_call_time);
-	if (timer == NULL) {
-		return;
-	}
-	// current_throttle / current_steering are kept zero by the watchdog
-	// when /cmd_vel has stalled, so publishing them gives ROS the
-	// post-watchdog view of what the firmware is driving.
-	cmd_actual_msg.linear.x = current_throttle;
-	cmd_actual_msg.angular.z = current_steering;
-	RCSOFTCHECK(rcl_publish(&cmd_actual_pub, &cmd_actual_msg, NULL));
-}
-
 static void cmd_vel_callback(const void *msgin)
 {
 	const geometry_msgs__msg__Twist *m = msgin;
@@ -168,12 +148,6 @@ int main(void)
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
 		"havoc_counter"));
 
-	RCCHECK(rclc_publisher_init_default(
-		&cmd_actual_pub,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
-		"havoc_cmd_actual"));
-
 	RCCHECK(rclc_subscription_init_default(
 		&cmd_vel_sub,
 		&node,
@@ -187,18 +161,9 @@ int main(void)
 		RCL_MS_TO_NS(1000),
 		timer_callback));
 
-	rcl_timer_t cmd_actual_timer;
-	RCCHECK(rclc_timer_init_default(
-		&cmd_actual_timer,
-		&support,
-		RCL_MS_TO_NS(100),   // 10 Hz status echo
-		cmd_actual_timer_callback));
-
-	// Executor: counter_timer + cmd_actual_timer + cmd_vel_sub = 3 slots.
 	rclc_executor_t executor;
-	RCCHECK(rclc_executor_init(&executor, &support.context, 3, &allocator));
+	RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
 	RCCHECK(rclc_executor_add_timer(&executor, &timer));
-	RCCHECK(rclc_executor_add_timer(&executor, &cmd_actual_timer));
 	RCCHECK(rclc_executor_add_subscription(
 		&executor, &cmd_vel_sub, &cmd_vel_msg,
 		cmd_vel_callback, ON_NEW_DATA));
