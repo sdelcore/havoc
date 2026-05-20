@@ -130,6 +130,21 @@ docker compose exec ros bash -lc '
 Zephyr should log `cmd_vel: linear.x=0.500000 angular.z=0.420000` at
 5 Hz.
 
+### Status echo
+
+The firmware also publishes `/havoc_cmd_actual` (`geometry_msgs/Twist`)
+at 10 Hz — what the firmware is actually driving *after* the watchdog
+has its say. ROS can subscribe to see the firmware's view of the world:
+
+```bash
+docker compose exec ros bash -lc \
+  'source /opt/ros/jazzy/setup.bash && ros2 topic echo /havoc_cmd_actual'
+```
+
+While `/cmd_vel` is flowing, `/havoc_cmd_actual` mirrors it. When the
+watchdog stalls, `/havoc_cmd_actual` goes to zero immediately even if
+`/cmd_vel` is still alive on the ROS side.
+
 ### Stall watchdog
 
 The firmware runs a 50 ms-period `k_timer` watchdog: if no `cmd_vel`
