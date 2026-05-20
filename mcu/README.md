@@ -61,29 +61,61 @@ revert to upstream when the issues / PRs land.
 
 ## Building the app
 
-All builds happen inside the zephyr container:
+```bash
+cd sim && docker compose up -d zephyr microros-agent
+docker compose exec zephyr bash -lc \
+  'cd /workspace && west build -b native_sim/native/64 app -p'
+```
+
+The board target is **`native_sim/native/64`**, not plain `native_sim`.
+The default native_sim is i686 (-m32), which makes gcc emit
+`__x86.get_pc_thunk.bx` thunks that native_sim's link-time
+`--gc-sections` discards - a 32-bit-only problem.
+
+## Running end-to-end (publisher + agent + ROS)
+
+`mcu/app/` publishes `std_msgs/Int32` on `/havoc_counter` at 1 Hz via
+the micro-ROS UDP transport. The path is:
+
+```
+Zephyr binary  --UDP/zeth-->  micro-ROS agent  --DDS-->  ROS 2 graph
+```
+
+Three pieces are needed:
+
+1. **`zeth` TAP interface.** Native_sim's `eth_native_tap` driver attaches
+   to a host-side TAP named `zeth` (192.0.2.0/24, host = 192.0.2.2,
+   Zephyr = 192.0.2.1). Create it once from inside the zephyr container:
+
+   ```bash
+   docker compose exec zephyr bash -lc '
+     ip tuntap add dev zeth mode tap
+     ip addr add 192.0.2.2/24 dev zeth
+     ip link set dev zeth up'
+   ```
+
+   The container has `NET_ADMIN` + `/dev/net/tun` from the compose file.
+   The TAP persists across container exec sessions; recreate on restart.
+
+2. **Agent.** `microros-agent` compose service runs `microros/micro-ros-agent:jazzy`,
+   listens on UDP `:8888`. `docker compose up -d microros-agent` starts it.
+
+3. **Zephyr binary.**
+   ```bash
+   docker compose exec zephyr /workspace/build/zephyr/zephyr.exe
+   ```
+   On boot it overrides `default_params.ip = "192.0.2.2"` (from
+   `CONFIG_MICROROS_AGENT_IP`) and opens the UDP transport.
+
+Verify with `ros2 topic echo` from the ros container:
 
 ```bash
-docker compose -f sim/docker-compose.yml up -d zephyr
-docker compose -f sim/docker-compose.yml exec zephyr bash -lc \
-  'cd /workspace && west build -b native_sim app -p'
-./mcu/build/zephyr/zephyr.exe                # run on host
+docker compose exec ros bash -lc \
+  'source /opt/ros/jazzy/setup.bash && ros2 topic echo /havoc_counter'
 ```
 
-Expected boot log:
-
-```
-*** Booting Zephyr OS build v4.4.0 ***
-[00:00:00.000,000] <inf> havoc_mcu: havoc_mcu starting
-[00:00:00.000,000] <inf> havoc_mcu: count=0
-[00:00:00.110,000] <inf> havoc_mcu: count=1
-...
-```
-
-The binary statically links `libmicroros.a` and the UDP transport, but
-`main.c` doesn't call any micro-ROS APIs yet - proving the link is M3's
-scope; publishers / subscribers / executor wiring come in M4+.
+Expected: `data: 0`, `data: 1`, ... at 1 Hz.
 
 `west build -t run` aggressively buffers the run target's stdout (ninja
 holds it until the subprocess exits, which Zephyr never does) - run
-`zephyr.exe` directly on the host instead.
+`zephyr.exe` directly instead.

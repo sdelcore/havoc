@@ -20,6 +20,7 @@ RUN apt-get update \
       python3-dev python3-pip python3-setuptools python3-wheel python3-venv \
       xz-utils file make gcc g++ gcc-multilib g++-multilib \
       libsdl2-dev libmagic1 \
+      iproute2 \
  && rm -rf /var/lib/apt/lists/*
 
 # Python tooling. --break-system-packages bypasses PEP 668 - acceptable
