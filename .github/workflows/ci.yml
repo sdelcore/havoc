@@ -115,7 +115,9 @@ jobs:
     if: needs.detect-changes.outputs.mcu == 'true'
     runs-on: ubuntu-latest
     container:
-      image: zephyrprojectrtos/ci:v0.26.17
+      # v0.26.17 ships Python 3.10; Zephyr v4.4 requires 3.12+. v0.29.2
+      # bumps the base to Ubuntu 24.04 / Python 3.12 / SDK ~1.0.x.
+      image: zephyrprojectrtos/ci:v0.29.2
       options: --user root
     steps:
       - uses: actions/checkout@v4
