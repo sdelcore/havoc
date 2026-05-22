@@ -80,12 +80,12 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: sim/Dockerfile.ros
-          failure-threshold: warning
+          failure-threshold: error
       - name: hadolint Dockerfile.zephyr
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: sim/Dockerfile.zephyr
-          failure-threshold: warning
+          failure-threshold: error
 
   # --- Path-filtered jobs --------------------------------------------------
 
