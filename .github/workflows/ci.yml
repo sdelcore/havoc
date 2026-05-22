@@ -224,7 +224,9 @@ jobs:
   zephyr-build:
     name: Zephyr native_sim build
     needs: [detect-changes, resolve-image-tags]
-    if: ${{ !cancelled() && !failure() && needs.detect-changes.outputs.mcu == 'true' }}
+    # Run on actual MCU source changes, OR when the zephyr image was just
+    # rebuilt - the new image deserves a smoke test before we trust it.
+    if: ${{ !cancelled() && !failure() && (needs.detect-changes.outputs.mcu == 'true' || needs.detect-changes.outputs.docker_zephyr == 'true') }}
     runs-on: ubuntu-24.04
     container:
       image: ${{ needs.resolve-image-tags.outputs.zephyr_tag && format('ghcr.io/{0}/havoc-zephyr:{1}', github.repository_owner, needs.resolve-image-tags.outputs.zephyr_tag) }}
