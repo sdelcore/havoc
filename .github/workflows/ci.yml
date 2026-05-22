@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit lands on the same PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- Cheap jobs (run on every PR) ----------------------------------------
+
+  urdf-lint:
+    name: URDF lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xacro + urdf checker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip liburdfdom-tools
+          pip3 install --break-system-packages xacro
+      - name: Process xacro
+        run: xacro ros/src/havoc_description/urdf/havoc.urdf.xacro > /tmp/havoc.urdf
+      - name: Validate URDF
+        run: check_urdf /tmp/havoc.urdf
+
+  ros-build:
+    name: ROS colcon build
+    runs-on: ubuntu-latest
+    container: ros:jazzy-ros-base
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ros-jazzy-xacro \
+            python3-colcon-common-extensions
+      - name: colcon build
+        shell: bash
+        run: |
+          . /opt/ros/jazzy/setup.bash
+          cd ros
+          colcon build --packages-select havoc_description --symlink-install
+      - name: colcon test
+        shell: bash
+        run: |
+          . /opt/ros/jazzy/setup.bash
+          cd ros
+          colcon test --packages-select havoc_description --return-code-on-test-failure
+
+  yaml-lint:
+    name: YAML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install --break-system-packages yamllint
+      - name: Lint bridge yaml and west manifest
+        # -d relaxed: tolerate our existing style (long lines, comments)
+        run: |
+          yamllint -d relaxed \
+            ros/src/havoc_description/config/ros_gz_bridge.yaml \
+            mcu/manifest/west.yml \
+            sim/docker-compose.yml \
+            .github/workflows/ci.yml
+
+  hadolint:
+    name: Dockerfile lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint Dockerfile.ros
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: sim/Dockerfile.ros
+          failure-threshold: warning
+      - name: hadolint Dockerfile.zephyr
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: sim/Dockerfile.zephyr
+          failure-threshold: warning
+
+  # --- Path-filtered jobs --------------------------------------------------
+
+  # Detect whether MCU-relevant paths changed in this PR. Used to gate the
+  # heavy zephyr-build job below.
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      mcu: ${{ steps.filter.outputs.mcu }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            mcu:
+              - 'mcu/**'
+              - 'flake.nix'
+              - '.github/workflows/ci.yml'
+
+  # --- Heavy jobs (mcu/ changes only) --------------------------------------
+
+  zephyr-build:
+    name: Zephyr native_sim build
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mcu == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: zephyrprojectrtos/ci:v0.26.17
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space on runner
+        run: |
+          rm -rf /usr/share/dotnet || true
+          rm -rf /usr/local/lib/android || true
+          rm -rf /opt/ghc || true
+          df -h
+
+      - name: Install Python deps for libmicroros build
+        run: |
+          pip3 install --no-cache-dir --break-system-packages \
+            colcon-common-extensions catkin_pkg lark-parser empy
+
+      - name: Configure git safe.directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Cache Zephyr + module sources
+        uses: actions/cache@v4
+        with:
+          path: |
+            mcu/zephyr
+            mcu/modules
+            mcu/.west
+          # Bust the cache when the manifest changes (Zephyr/module pin bumps).
+          key: zephyr-sources-${{ hashFiles('mcu/manifest/west.yml') }}
+          restore-keys: |
+            zephyr-sources-
+
+      - name: West init + update
+        working-directory: mcu
+        run: |
+          if [ ! -d .west ]; then
+            west init -l manifest/
+          fi
+          west update --narrow
+
+      - name: West build (native_sim/native/64)
+        working-directory: mcu
+        run: |
+          west build -b native_sim/native/64 app -p
+
+      - name: Smoke-run the binary (boot only)
+        working-directory: mcu
+        # The binary blocks waiting for a micro-ROS agent in CI; we just
+        # check it boots and prints its start banner within a few seconds.
+        run: |
+          timeout 3 ./build/zephyr/zephyr.exe 2>&1 | tee /tmp/boot.log || true
+          grep -q "havoc_mcu starting" /tmp/boot.log
