@@ -15,6 +15,7 @@ def generate_launch_description():
 
     urdf_xacro = os.path.join(pkg_desc, 'urdf', 'havoc.urdf.xacro')
     bridge_config = os.path.join(pkg_desc, 'config', 'ros_gz_bridge.yaml')
+    world_file = os.path.join(pkg_desc, 'worlds', 'havoc_sim.sdf')
 
     robot_description = xacro.process_file(urdf_xacro).toxml()
 
@@ -22,7 +23,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments={'gz_args': '-r empty.sdf'}.items(),
+        # havoc_sim.sdf loads the Sensors + IMU systems on top of the
+        # usual physics/scene-broadcaster set; required for the URDF's
+        # rgbd_camera and imu sensors to publish.
+        launch_arguments={'gz_args': '-r ' + world_file}.items(),
     )
 
     robot_state_publisher = Node(
