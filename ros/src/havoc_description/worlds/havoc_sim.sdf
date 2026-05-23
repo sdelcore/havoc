@@ -1,13 +1,13 @@
 <?xml version="1.0" ?>
 <!--
-  Havoc Gazebo world. Based on the stock empty.sdf but adds the Sensors
-  and IMU systems so the rgbd_camera and imu sensors declared in the
-  robot URDF actually produce data. Without these, the URDF's <gazebo>
-  sensor blocks are silent.
+  Havoc Gazebo world. Adds the Sensors and IMU systems on top of the
+  basic empty.sdf set so the rgbd_camera and imu sensors declared in
+  the robot URDF actually produce data.
 
-  Phase 0.5 of the Autonomy Plan calls for a richer test world (walls +
-  obstacles for SLAM to map). This is the bare-minimum version - empty
-  ground plane only. Add scenery in a follow-up PR.
+  Includes a 10x10 m bounded test arena with a handful of obstacles -
+  enough features for visual SLAM to build a non-trivial map and for
+  Nav2 to plan paths around. Coordinates in meters; the arena center
+  is at the world origin so the car spawns inside.
 -->
 <sdf version="1.10">
   <world name="havoc_sim">
@@ -63,6 +63,145 @@
             <ambient>0.7 0.7 0.7 1</ambient>
             <diffuse>0.8 0.8 0.8 1</diffuse>
             <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================
+         Bounding walls: 10x10 m arena, walls 1 m tall, 0.1 m thick.
+         Tinted slightly differently from obstacles so SLAM has
+         visual variety for ORB/feature matching.
+         ============================================================ -->
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0 5 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>10 0.1 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>10 0.1 1</size></box></geometry>
+          <material>
+            <ambient>0.4 0.4 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_south">
+      <static>true</static>
+      <pose>0 -5 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>10 0.1 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>10 0.1 1</size></box></geometry>
+          <material>
+            <ambient>0.4 0.4 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_east">
+      <static>true</static>
+      <pose>5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 10 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 10 1</size></box></geometry>
+          <material>
+            <ambient>0.4 0.4 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 10 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 10 1</size></box></geometry>
+          <material>
+            <ambient>0.4 0.4 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================
+         Obstacles inside the arena. Mixed sizes / heights / positions
+         to give the planner and SLAM something interesting.
+         ============================================================ -->
+    <model name="pillar_a">
+      <static>true</static>
+      <pose>2.0 2.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.3 0.3 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.3 0.3 1.0</size></box></geometry>
+          <material>
+            <ambient>0.6 0.3 0.2 1</ambient>
+            <diffuse>0.7 0.4 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="box_a">
+      <static>true</static>
+      <pose>-2.0 1.0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+            <diffuse>0.4 0.6 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="long_box">
+      <static>true</static>
+      <pose>1.0 -2.5 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1.5 0.3 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1.5 0.3 0.4</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.6 1</ambient>
+            <diffuse>0.4 0.4 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="pillar_b">
+      <static>true</static>
+      <pose>-3.0 -2.0 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.2</radius><length>0.8</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.2</radius><length>0.8</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.5 0.3 1</ambient>
+            <diffuse>0.6 0.6 0.4 1</diffuse>
           </material>
         </visual>
       </link>
