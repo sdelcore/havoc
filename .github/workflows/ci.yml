@@ -1,0 +1,275 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit lands on the same PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write   # for build-image-* to push to ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+  # Lowercase the repository owner so the image refs are valid.
+  IMAGE_BASE: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # --- Cheap jobs (run on every PR) ----------------------------------------
+
+  urdf-lint:
+    name: URDF lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xacro + urdf checker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip liburdfdom-tools
+          pip3 install --break-system-packages xacro
+      - name: Process xacro
+        run: xacro ros/src/havoc_description/urdf/havoc.urdf.xacro > /tmp/havoc.urdf
+      - name: Validate URDF
+        run: check_urdf /tmp/havoc.urdf
+
+  yaml-lint:
+    name: YAML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install --break-system-packages yamllint
+      - name: Lint bridge yaml and west manifest
+        # -d relaxed: tolerate our existing style (long lines, comments)
+        run: |
+          yamllint -d relaxed \
+            ros/src/havoc_description/config/ros_gz_bridge.yaml \
+            mcu/manifest/west.yml \
+            sim/docker-compose.yml \
+            .github/workflows/ci.yml
+
+  hadolint:
+    name: Dockerfile lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint Dockerfile.ros
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: sim/Dockerfile.ros
+          failure-threshold: error
+      - name: hadolint Dockerfile.zephyr
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: sim/Dockerfile.zephyr
+          failure-threshold: error
+
+  # --- Detect changes -----------------------------------------------------
+
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      mcu: ${{ steps.filter.outputs.mcu }}
+      docker_ros: ${{ steps.filter.outputs.docker_ros }}
+      docker_zephyr: ${{ steps.filter.outputs.docker_zephyr }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            mcu:
+              - 'mcu/**'
+              - 'flake.nix'
+            docker_ros:
+              - 'sim/Dockerfile.ros'
+              - '.github/workflows/ci.yml'
+            docker_zephyr:
+              - 'sim/Dockerfile.zephyr'
+              - 'sim/zephyr-entrypoint.sh'
+              - '.github/workflows/ci.yml'
+
+  # --- Image build jobs (only on Dockerfile / workflow changes) -----------
+
+  build-image-ros:
+    name: Build havoc-ros image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docker_ros == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push havoc-ros
+        uses: docker/build-push-action@v5
+        with:
+          context: sim
+          file: sim/Dockerfile.ros
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}/havoc-ros:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}/havoc-ros:${{ github.ref == 'refs/heads/main' && 'main' || format('pr-{0}', github.event.pull_request.number) }}
+          cache-from: type=gha,scope=havoc-ros
+          cache-to: type=gha,mode=max,scope=havoc-ros
+
+  build-image-zephyr:
+    name: Build havoc-zephyr image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docker_zephyr == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: false   # keep buildx cache
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push havoc-zephyr
+        uses: docker/build-push-action@v5
+        with:
+          context: sim
+          file: sim/Dockerfile.zephyr
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}/havoc-zephyr:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}/havoc-zephyr:${{ github.ref == 'refs/heads/main' && 'main' || format('pr-{0}', github.event.pull_request.number) }}
+          cache-from: type=gha,scope=havoc-zephyr
+          cache-to: type=gha,mode=max,scope=havoc-zephyr
+
+  # --- Build jobs (use the images) ----------------------------------------
+
+  # Resolves the image tag for downstream container: refs. When the image
+  # was just rebuilt by build-image-*, use the immutable :sha tag. When
+  # it was skipped (Dockerfile didn't change), fall back to :main (or the
+  # PR-pinned tag for in-PR work that didn't bump the Dockerfile).
+  resolve-image-tags:
+    name: Resolve image tags
+    needs: [detect-changes, build-image-ros, build-image-zephyr]
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    outputs:
+      ros_tag: ${{ steps.tags.outputs.ros_tag }}
+      zephyr_tag: ${{ steps.tags.outputs.zephyr_tag }}
+    steps:
+      - id: tags
+        run: |
+          # Default tag: main (always exists after first push to main).
+          # On a PR that hasn't bumped the Dockerfile but main hasn't yet
+          # built either, this would fall back to 'main' and fail. That's
+          # only a concern on the very first run of this workflow.
+          DEFAULT_TAG=${{ github.ref == 'refs/heads/main' && 'main' || format('pr-{0}', github.event.pull_request.number) }}
+
+          if [ "${{ needs.build-image-ros.result }}" = "success" ]; then
+            echo "ros_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ros_tag=$DEFAULT_TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "${{ needs.build-image-zephyr.result }}" = "success" ]; then
+            echo "zephyr_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "zephyr_tag=$DEFAULT_TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+  ros-build:
+    name: ROS colcon build
+    needs: resolve-image-tags
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.resolve-image-tags.outputs.ros_tag && format('ghcr.io/{0}/havoc-ros:{1}', github.repository_owner, needs.resolve-image-tags.outputs.ros_tag) }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: colcon build
+        shell: bash
+        run: |
+          . /opt/ros/jazzy/setup.bash
+          cd ros
+          colcon build --packages-select havoc_description --symlink-install
+      - name: colcon test
+        shell: bash
+        run: |
+          . /opt/ros/jazzy/setup.bash
+          cd ros
+          colcon test --packages-select havoc_description --return-code-on-test-failure
+
+  zephyr-build:
+    name: Zephyr native_sim build
+    needs: [detect-changes, resolve-image-tags]
+    # Run on actual MCU source changes, OR when the zephyr image was just
+    # rebuilt - the new image deserves a smoke test before we trust it.
+    if: ${{ !cancelled() && !failure() && (needs.detect-changes.outputs.mcu == 'true' || needs.detect-changes.outputs.docker_zephyr == 'true') }}
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ needs.resolve-image-tags.outputs.zephyr_tag && format('ghcr.io/{0}/havoc-zephyr:{1}', github.repository_owner, needs.resolve-image-tags.outputs.zephyr_tag) }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      # Skip the Dockerfile's ENTRYPOINT - zeth TAP setup needs NET_ADMIN
+      # which CI containers don't get. Boot-only smoke test is fine without
+      # networking.
+      options: --entrypoint ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure git safe.directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Cache Zephyr + module sources
+        uses: actions/cache@v4
+        with:
+          path: |
+            mcu/zephyr
+            mcu/modules
+            mcu/.west
+          key: zephyr-sources-${{ hashFiles('mcu/manifest/west.yml') }}
+          restore-keys: |
+            zephyr-sources-
+
+      - name: West init + update
+        working-directory: mcu
+        run: |
+          if [ ! -d .west ]; then
+            west init -l manifest/
+          fi
+          west update --narrow
+
+      - name: West build (native_sim/native/64)
+        working-directory: mcu
+        run: west build -b native_sim/native/64 app -p
+
+      - name: Smoke-run the binary (boot only)
+        working-directory: mcu
+        # Binary normally blocks waiting for the micro-ROS agent; we just
+        # check the boot banner prints within a few seconds.
+        run: |
+          timeout 3 ./build/zephyr/zephyr.exe 2>&1 | tee /tmp/boot.log || true
+          grep -q "havoc_mcu starting" /tmp/boot.log
