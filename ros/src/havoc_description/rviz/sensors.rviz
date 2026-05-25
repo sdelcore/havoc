@@ -1,0 +1,73 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Cell Size: 1
+      Plane Cell Count: 20
+      Color: 160; 160; 164
+      Enabled: true
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Show Names: true
+      Show Axes: true
+      Marker Scale: 0.3
+      Enabled: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+      Enabled: true
+    - Class: rviz_default_plugins/Image
+      Name: Camera RGB
+      Topic:
+        Value: /camera/image
+        Reliability Policy: Best Effort
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Depth Cloud
+      Topic:
+        Value: /camera/points
+        Reliability Policy: Best Effort
+      Size (Pixels): 3
+      Color Transformer: RGB8
+      Enabled: true
+    - Class: rviz_default_plugins/Imu
+      Name: IMU
+      Topic:
+        Value: /imu
+        Reliability Policy: Best Effort
+      Acceleration properties:
+        Acc. vector scale: 0.5
+        Derotate acceleration: true
+      Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: base_link
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 3.0
+      Focal Point: { X: 0, Y: 0, Z: 0 }
+      Pitch: 0.45
+      Yaw: 2.35
+      Target Frame: base_link
+      Name: Orbit
+Window Geometry:
+  Width: 1400
+  Height: 900
+  Hide Left Dock: false
+  Hide Right Dock: false

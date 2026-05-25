@@ -50,9 +50,24 @@ docker compose exec ros bash -lc \
   'cd /workspace && source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
 ```
 
-This loads `havoc.urdf.xacro`, starts Gazebo with an empty world,
-spawns the car, and starts the `ros_gz_bridge` so ROS `/cmd_vel`
-messages reach the in-Gazebo ackermann controller.
+This loads `havoc.urdf.xacro`, starts Gazebo with the `havoc_sim.sdf`
+world (a 10×10 m arena with four walls and a handful of obstacles
+for SLAM to chew on), spawns the car, starts `robot_state_publisher`,
+and starts the `ros_gz_bridge` so:
+
+- ROS `/cmd_vel` reaches the in-Gazebo ackermann controller (input)
+- Gazebo's RGBD camera + IMU output reaches ROS as `/camera/*` + `/imu` (sensors)
+
+## Visualize in RViz
+
+```bash
+docker compose exec ros bash -lc \
+  'source install/setup.bash && ros2 launch havoc_description view.launch.py'
+```
+
+Loads `rviz/sensors.rviz` with TF + RobotModel + RGB image + depth
+point cloud + IMU axis preconfigured. Run this in a second terminal
+alongside `spawn.launch.py`. Needs X11 (see Display forwarding below).
 
 ## Drive in a circle
 
