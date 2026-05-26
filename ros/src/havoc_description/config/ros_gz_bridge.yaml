@@ -40,3 +40,28 @@
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
+
+# Odometry from the ackermann plugin. SLAM/Nav2 subscribe to this on
+# the ROS side; the plugin produces it on the gz side.
+- ros_topic_name: "/odom"
+  gz_topic_name: "/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# TF from the ackermann plugin (dynamic odom -> base_footprint). The
+# rest of the TF tree (base_footprint -> base_link -> camera, etc.)
+# comes from robot_state_publisher reading the URDF.
+- ros_topic_name: "/tf"
+  gz_topic_name: "/tf"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+# Joint states from the joint_state_publisher plugin. Lets RViz show
+# the wheels rotating and the front wheels steering. Not needed by SLAM.
+- ros_topic_name: "/joint_states"
+  gz_topic_name: "/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
