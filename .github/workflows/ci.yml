@@ -178,22 +178,21 @@ jobs:
     steps:
       - id: tags
         run: |
-          # Default tag: main (always exists after first push to main).
-          # On a PR that hasn't bumped the Dockerfile but main hasn't yet
-          # built either, this would fall back to 'main' and fail. That's
-          # only a concern on the very first run of this workflow.
-          DEFAULT_TAG=${{ github.ref == 'refs/heads/main' && 'main' || format('pr-{0}', github.event.pull_request.number) }}
-
+          # When the image was rebuilt in *this* run, use its immutable
+          # :sha tag. Otherwise the image content matches main (the PR
+          # didn't touch the Dockerfile), so fall back to the always-on
+          # :main tag. The :pr-N tag exists as a label on PR-built
+          # images, NOT as a fallback - it'd be a phantom reference here.
           if [ "${{ needs.build-image-ros.result }}" = "success" ]; then
             echo "ros_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
-            echo "ros_tag=$DEFAULT_TAG" >> "$GITHUB_OUTPUT"
+            echo "ros_tag=main" >> "$GITHUB_OUTPUT"
           fi
 
           if [ "${{ needs.build-image-zephyr.result }}" = "success" ]; then
             echo "zephyr_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
-            echo "zephyr_tag=$DEFAULT_TAG" >> "$GITHUB_OUTPUT"
+            echo "zephyr_tag=main" >> "$GITHUB_OUTPUT"
           fi
 
   ros-build:
