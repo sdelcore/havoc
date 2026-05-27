@@ -100,6 +100,22 @@ docker compose exec -it ros bash -lc \
 Focus the second terminal and use `i`/`,` for forward/reverse, `j`/`l`
 for left/right, `k` to stop.
 
+## Headless
+
+For CI or display-less machines:
+
+```bash
+# server-only gz (no GUI window) wrapped in xvfb for sensor rendering
+docker compose exec ros bash -lc \
+  'source install/setup.bash && xvfb-run -a ros2 launch havoc_description spawn.launch.py headless:=true'
+```
+
+`headless:=true` adds `-s` to `gz sim` so it never tries to open a GUI
+window. `xvfb-run -a` gives OGRE (the renderer Gazebo uses for sensor
+images) a virtual display — without it, depth/RGB topics stay silent.
+
+`view.launch.py` (RViz) intentionally can't run headless — it's a GUI.
+
 ## Display forwarding
 
 The compose file forwards X11 so Gazebo's GUI can open from inside the
