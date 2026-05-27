@@ -42,8 +42,20 @@ TEARDOWN_PROCS = [
 
 
 def _setup_env():
-    """Return a bash command prefix that has the workspace sourced."""
-    return '. /opt/ros/jazzy/setup.bash && . /workspace/install/setup.bash'
+    """Return a bash command prefix that sources the ROS env.
+
+    COLCON_PREFIX_PATH is set both by `colcon test` (CI) and by
+    sourcing a workspace's setup.bash (docker dev container), so it's
+    the right discovery mechanism for both. /workspace/install is the
+    last-ditch fallback for raw `python3 -m pytest` runs in the dev
+    container before the env is sourced.
+    """
+    candidates = (os.environ.get('COLCON_PREFIX_PATH') or '/workspace/install').split(':')
+    workspace = next(
+        (p for p in candidates if p and os.path.exists(os.path.join(p, 'setup.bash'))),
+        '/workspace/install',
+    )
+    return f'. /opt/ros/jazzy/setup.bash && . {workspace}/setup.bash'
 
 
 def _kill_all():
