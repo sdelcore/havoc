@@ -4,8 +4,10 @@ Launches `slam.launch.py` headless (via xvfb wrapping at the colcon
 level), drives the car with a Twist publisher, and verifies that
 RTAB-Map produces output (`/map` published, `/info.ref_id` > 0).
 
-Heavy: ~70 s per run. Worth it because it's the only test that
-exercises Gazebo + sensors + bridge + RTAB-Map together end-to-end.
+The fixture polls `ros2 topic info` until each milestone publishes —
+no fixed sleeps. On a 1× runner the whole thing is ~30 s; on a 0.5×
+CI runner closer to 2 minutes. The polling means we don't burn extra
+wall-clock locally, and we don't false-fail on slow CI.
 
 Skipped if `xvfb-run` isn't on PATH - the havoc-ros docker image
 includes it. On a bare host, `apt install xvfb`.
@@ -71,6 +73,27 @@ def _kill_all():
     time.sleep(2)  # let zombies reap
 
 
+def _wait_for_topic(name, timeout):
+    """Poll `ros2 topic info` until `name` has a publisher, or timeout.
+
+    Replaces blocking sleeps in the fixture. Each probe spawns a fresh
+    `ros2` CLI process — slower than an rclpy node but matches the rest
+    of the file's style, and DDS discovery on a cold node takes 1-2 s
+    anyway so the 2 s loop sleep is the right granularity.
+    """
+    deadline = time.monotonic() + timeout
+    env = _setup_env()
+    while time.monotonic() < deadline:
+        info = subprocess.run(
+            ['bash', '-c', f'{env} && ros2 topic info {name}'],
+            capture_output=True, text=True, timeout=10,
+        )
+        if info.returncode == 0 and 'Publisher count: 0' not in info.stdout:
+            return True
+        time.sleep(2)
+    return False
+
+
 @pytest.fixture(scope='module', autouse=True)
 def slam_stack():
     if not shutil.which('xvfb-run'):
@@ -100,35 +123,49 @@ def slam_stack():
         launch_cmd, shell=True,
         stdout=launch_log, stderr=subprocess.STDOUT,
     )
+    drive_proc = None
 
-    # Give Gazebo, the bridge, robot_state_publisher, rgbd_sync, and
-    # rtabmap time to come up. ~15 s in practice.
-    time.sleep(20)
-
-    # Drive the car so SLAM has motion + parallax to consume.
-    drive_cmd = (
-        f'bash -c "{_setup_env()} && '
-        'exec ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist '
-        '\'{linear: {x: 0.3}, angular: {z: 0.5}}\'"'
-    )
-    drive_proc = subprocess.Popen(
-        drive_cmd, shell=True,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-
-    # Let it drive long enough for RTAB-Map to add several nodes.
-    time.sleep(25)
-
-    yield {'launch': launch_proc, 'drive': drive_proc}
-
-    # Brutal teardown. SIGINT first for grace, then SIGKILL by name.
     try:
-        drive_proc.send_signal(signal.SIGINT)
-        launch_proc.send_signal(signal.SIGINT)
-        time.sleep(2)
-    except Exception:
-        pass
-    _kill_all()
+        # Gazebo + bridge are alive once /odom advertises (the ackermann
+        # plugin publishes wheel odometry). On a slow runner it can take
+        # 30+ s for Gazebo to finish initializing rendering & sensors.
+        assert _wait_for_topic('/odom', timeout=60), (
+            '/odom never advertised within 60 s — Gazebo or the bridge '
+            'failed to come up. See /tmp/slam_e2e.log.'
+        )
+
+        # Drive the car so SLAM has motion + parallax to consume.
+        drive_cmd = (
+            f'bash -c "{_setup_env()} && '
+            'exec ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist '
+            '\'{linear: {x: 0.3}, angular: {z: 0.5}}\'"'
+        )
+        drive_proc = subprocess.Popen(
+            drive_cmd, shell=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+        # /map advertises once RTAB-Map has enough graph nodes to project
+        # an occupancy grid (a handful of keyframes). At 1 Hz detection
+        # rate that's ~5-10 s of sim time after driving starts; on a 0.5×
+        # CI runner that's ~20 s wall-clock, plus startup. 150 s budget
+        # gives plenty of headroom without hiding a real regression.
+        assert _wait_for_topic('/map', timeout=150), (
+            '/map never advertised within 150 s — RTAB-Map is not '
+            'producing a map. See /tmp/slam_e2e.log.'
+        )
+
+        yield {'launch': launch_proc, 'drive': drive_proc}
+    finally:
+        # Brutal teardown. SIGINT first for grace, then SIGKILL by name.
+        try:
+            if drive_proc is not None:
+                drive_proc.send_signal(signal.SIGINT)
+            launch_proc.send_signal(signal.SIGINT)
+            time.sleep(2)
+        except Exception:
+            pass
+        _kill_all()
 
 
 def _topic_check(name, timeout=20):
