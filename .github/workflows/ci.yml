@@ -215,10 +215,36 @@ jobs:
           colcon build --packages-select havoc_description --symlink-install
       - name: colcon test
         shell: bash
+        # event-handlers console_direct+ streams test stdout/stderr live
+        # instead of swallowing it into a log file we can't see. Critical
+        # for debugging xvfb / Gazebo / RTAB-Map issues that only repro
+        # on the runner.
         run: |
           . /opt/ros/jazzy/setup.bash
           cd ros
-          colcon test --packages-select havoc_description --return-code-on-test-failure
+          colcon test \
+            --packages-select havoc_description \
+            --return-code-on-test-failure \
+            --event-handlers console_direct+
+      - name: colcon test-result (verbose on failure)
+        if: failure()
+        shell: bash
+        run: |
+          . /opt/ros/jazzy/setup.bash
+          cd ros
+          colcon test-result --verbose || true
+          echo "===== /tmp/slam_e2e.log ====="
+          cat /tmp/slam_e2e.log || true
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros-test-logs
+          path: |
+            ros/build/havoc_description/Testing/
+            ros/log/latest_test/
+            /tmp/slam_e2e.log
+          if-no-files-found: ignore
 
   zephyr-build:
     name: Zephyr native_sim build
