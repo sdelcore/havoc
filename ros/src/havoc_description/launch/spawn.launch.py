@@ -45,8 +45,8 @@ def generate_launch_description():
     # When headless=true, the gz_args string becomes "-r -s <world>"
     # so gz sim skips its GUI entirely. Otherwise "-r <world>".
     gz_args = PythonExpression([
-        "'-r -s ' if '", LaunchConfiguration('headless'),
-        "' == 'true' else '-r '", " + '", world_file, "'",
+        "('-r -s ' if '", LaunchConfiguration('headless'),
+        "' == 'true' else '-r ') + '", world_file, "'",
     ])
 
     gz_sim = IncludeLaunchDescription(
