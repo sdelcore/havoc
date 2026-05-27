@@ -44,18 +44,23 @@ TEARDOWN_PROCS = [
 def _setup_env():
     """Return a bash command prefix that sources the ROS env.
 
-    COLCON_PREFIX_PATH is set both by `colcon test` (CI) and by
-    sourcing a workspace's setup.bash (docker dev container), so it's
-    the right discovery mechanism for both. /workspace/install is the
-    last-ditch fallback for raw `python3 -m pytest` runs in the dev
-    container before the env is sourced.
+    Walks up from this test file's directory until it finds an
+    `install/setup.bash` sibling. Works for both `colcon test` (CI,
+    where __file__ resolves to .../ros/src/havoc_description/test/...)
+    and raw pytest in the docker dev container (where __file__
+    resolves to /workspace/src/...). Doesn't rely on COLCON_PREFIX_PATH
+    or AMENT_PREFIX_PATH being propagated to the test process - colcon
+    test doesn't set the former, and the latter points at per-package
+    dirs rather than the workspace root.
     """
-    candidates = (os.environ.get('COLCON_PREFIX_PATH') or '/workspace/install').split(':')
-    workspace = next(
-        (p for p in candidates if p and os.path.exists(os.path.join(p, 'setup.bash'))),
-        '/workspace/install',
-    )
-    return f'. /opt/ros/jazzy/setup.bash && . {workspace}/setup.bash'
+    here = os.path.dirname(os.path.abspath(__file__))
+    while here and here != '/':
+        candidate = os.path.join(here, 'install', 'setup.bash')
+        if os.path.exists(candidate):
+            return f'. /opt/ros/jazzy/setup.bash && . {candidate}'
+        here = os.path.dirname(here)
+    # Last-ditch fallback for the docker dev container's bind mount.
+    return '. /opt/ros/jazzy/setup.bash && . /workspace/install/setup.bash'
 
 
 def _kill_all():
