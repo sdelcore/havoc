@@ -2,11 +2,17 @@
 
 Launch arguments:
   headless (default: false)
-    When true, pass -s to gz sim so the Gazebo GUI never opens.
-    Sensor rendering still happens (it uses OGRE), so for fully
-    display-less environments (CI, headless servers) wrap the whole
-    launch in `xvfb-run -a -- ros2 launch ...` — that gives OGRE a
-    virtual display without spawning a real window.
+    When true, pass -s to gz sim — server-only, no GUI window. NOTE:
+    this *also* disables sensor rendering (Gazebo's `-s` skips the
+    rendering pipeline), so /camera/* and similar topics will be
+    silent. Use it only when you don't need sensor data (e.g. testing
+    the bridge or ackermann plugin in isolation).
+
+    For a truly display-less environment that *does* need sensors
+    (CI, headless servers), leave headless=false and wrap the launch
+    in `xvfb-run -a -- ros2 launch ...`. xvfb gives OGRE a virtual
+    display to render to off-screen; the test/test_slam_e2e.py
+    integration test does exactly this.
 """
 
 import os

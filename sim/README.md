@@ -102,17 +102,21 @@ for left/right, `k` to stop.
 
 ## Headless
 
-For CI or display-less machines:
+For CI or display-less machines, wrap the launch in `xvfb-run`:
 
 ```bash
-# server-only gz (no GUI window) wrapped in xvfb for sensor rendering
 docker compose exec ros bash -lc \
-  'source install/setup.bash && xvfb-run -a ros2 launch havoc_description spawn.launch.py headless:=true'
+  'source install/setup.bash && xvfb-run -a ros2 launch havoc_description spawn.launch.py'
 ```
 
-`headless:=true` adds `-s` to `gz sim` so it never tries to open a GUI
-window. `xvfb-run -a` gives OGRE (the renderer Gazebo uses for sensor
-images) a virtual display — without it, depth/RGB topics stay silent.
+`xvfb-run -a` gives OGRE (the renderer Gazebo uses for sensor images)
+a virtual display — without it, depth/RGB topics stay silent. No
+window actually opens because there's nobody to display to.
+
+There's also a `headless:=true` arg that adds `-s` to `gz sim` (server
+only). **Caveat:** `-s` also disables Gazebo's rendering pipeline, so
+sensor topics go silent. Only useful if you don't need sensors. For
+SLAM/perception work — use the `xvfb-run` recipe above instead.
 
 `view.launch.py` (RViz) intentionally can't run headless — it's a GUI.
 
