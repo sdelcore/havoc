@@ -69,36 +69,74 @@ Loads `rviz/sensors.rviz` with TF + RobotModel + RGB image + depth
 point cloud + IMU axis preconfigured. Run this in a second terminal
 alongside `spawn.launch.py`. Needs X11 (see Display forwarding below).
 
-## Drive in a circle
+## The policy spine
+
+A *policy* is anything that publishes `geometry_msgs/Twist`. The
+`havoc_policies` package defines a `BasePolicy` ABC and concrete
+subclasses (currently `ConstantPolicy`; pure pursuit / Nav2 / RL /
+explorer to come). Each policy publishes on its own `cmd_vel_<name>`
+topic; `twist_mux` arbitrates them by priority and timeout onto the
+canonical `/cmd_vel`. Priorities (in `havoc_policies/config/twist_mux.yaml`):
+
+| Slot | Priority | Topic | Notes |
+|---|---|---|---|
+| teleop | 100 | `cmd_vel_teleop` | Human override, always wins |
+| nav2 | 50 | `cmd_vel_nav2` | Reserved (no node yet) |
+| pure_pursuit | 40 | `cmd_vel_pure_pursuit` | Reserved |
+| rl | 30 | `cmd_vel_rl` | Reserved |
+| explorer | 20 | `cmd_vel_explorer` | Reserved |
+| constant | 10 | `cmd_vel_constant` | Lowest — demo / smoke fixture |
+
+`autonomous.launch.py` always brings up the mux; the `policy` arg picks
+which in-launch policy (if any) drives.
+
+## Drive in a circle (via the policy spine)
 
 ```bash
+# terminal 1: sim
 docker compose exec ros bash -lc \
-  'cd /workspace && source install/setup.bash && ros2 launch havoc_description circle.launch.py'
+  'source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
+
+# terminal 2: policy spine + constant policy
+docker compose exec ros bash -lc \
+  'source install/setup.bash && ros2 launch havoc_bringup autonomous.launch.py \
+     policy:=constant linear_speed:=0.5 angular_speed:=0.5'
 ```
 
-This is `spawn.launch.py` + a delayed `ros2 topic pub` that publishes a
-constant `Twist(linear.x=0.5, angular.z=0.5)`, giving roughly a 1 m
-radius circle.
+`linear=0.5 angular=0.5` gives roughly a 1 m radius circle. There's
+also a legacy `havoc_description/launch/circle.launch.py` (spawn + a
+`Timer`-delayed `ros2 topic pub` direct to `/cmd_vel`) that does the
+same thing without going through the mux — use it when you want to
+isolate the bridge/ackermann path from policy code.
 
-## Drive with the keyboard
+## Drive with the keyboard (via the policy spine)
 
-Two terminals — the teleop node needs an interactive TTY of its own.
-Terminal 1 brings up the same sim as the "Spawn the car in Gazebo"
-section; terminal 2 runs `teleop_twist_keyboard`, which publishes
-`Twist` on `/cmd_vel` for the existing bridge to forward.
+Three terminals — sim, mux, and keyboard. The mux runs alongside any
+other policy you want; keyboard's priority (100) outvotes everything
+else for as long as you're tapping keys.
 
 ```bash
-# terminal 1: sim + bridge
+# terminal 1: sim
 docker compose exec ros bash -lc \
-  'cd /workspace && source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
+  'source install/setup.bash && ros2 launch havoc_description spawn.launch.py'
 
-# terminal 2: keyboard driver
+# terminal 2: policy spine (no in-launch policy)
+docker compose exec ros bash -lc \
+  'source install/setup.bash && ros2 launch havoc_bringup autonomous.launch.py'
+
+# terminal 3: keyboard, remapped onto the mux's teleop input
 docker compose exec -it ros bash -lc \
-  'source install/setup.bash && ros2 run teleop_twist_keyboard teleop_twist_keyboard'
+  'source install/setup.bash && ros2 launch havoc_bringup teleop.launch.py'
 ```
 
-Focus the second terminal and use `i`/`,` for forward/reverse, `j`/`l`
-for left/right, `k` to stop.
+Focus terminal 3 and use `i`/`,` for forward/reverse, `j`/`l` for
+left/right, `k` to stop.
+
+You can also drive the keyboard alongside an autonomous policy
+(e.g. `policy:=constant` in terminal 2). Stop tapping keys, the mux
+times the teleop source out after 0.5 s and falls back to the
+autonomous source. That handoff pattern is what makes the spine useful
+for safe RL training and evaluation.
 
 ## Headless
 

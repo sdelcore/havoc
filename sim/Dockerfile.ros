@@ -8,6 +8,7 @@ RUN apt-get update \
       ros-jazzy-xacro \
       ros-jazzy-robot-state-publisher \
       ros-jazzy-teleop-twist-keyboard \
+      ros-jazzy-twist-mux \
       ros-jazzy-rtabmap-ros \
       xvfb \
  && rm -rf /var/lib/apt/lists/*
