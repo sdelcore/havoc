@@ -13,9 +13,10 @@ sim-agnostic functions so they can be reused identically by:
 
 import gymnasium as gym
 
-from havoc_gym.sim_env import HavocSimEnv  # noqa: F401
-
-# Register so users can `gym.make("HavocSim-v0")` instead of importing.
+# Register lazily — gym resolves the entry_point string at gym.make()
+# time, which means importing havoc_gym (e.g. from a pure-Python unit
+# test) does NOT pull in rclpy. The ROS deps only load when something
+# actually instantiates the env.
 gym.register(
     id="HavocSim-v0",
     entry_point="havoc_gym.sim_env:HavocSimEnv",
