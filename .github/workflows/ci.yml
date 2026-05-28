@@ -212,7 +212,7 @@ jobs:
         run: |
           . /opt/ros/jazzy/setup.bash
           cd ros
-          colcon build --packages-select havoc_description --symlink-install
+          colcon build --packages-select havoc_description havoc_policies havoc_bringup --symlink-install
       - name: colcon test
         shell: bash
         # event-handlers console_direct+ streams test stdout/stderr live
@@ -223,7 +223,7 @@ jobs:
           . /opt/ros/jazzy/setup.bash
           cd ros
           colcon test \
-            --packages-select havoc_description \
+            --packages-select havoc_description havoc_policies havoc_bringup \
             --return-code-on-test-failure \
             --event-handlers console_direct+
       - name: colcon test-result (verbose on failure)
@@ -242,9 +242,32 @@ jobs:
           name: ros-test-logs
           path: |
             ros/build/havoc_description/Testing/
+            ros/build/havoc_policies/Testing/
+            ros/build/havoc_bringup/Testing/
             ros/log/latest_test/
             /tmp/slam_e2e.log
           if-no-files-found: ignore
+
+  training-pytest:
+    name: training/ pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install training pkg + test deps
+        # Pure-Python pieces only — no ROS needed for the observation +
+        # reward unit tests. The integration test (env vs running sim)
+        # lives in the colcon docker job, not here.
+        run: |
+          cd training
+          pip install -e .[dev]
+      - name: pytest
+        run: |
+          cd training
+          pytest tests/ -v
 
   zephyr-build:
     name: Zephyr native_sim build

@@ -13,6 +13,7 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ../ros:/workspace
+      - ../training:/training
 
   microros-agent:
     image: microros/micro-ros-agent:jazzy

@@ -11,7 +11,15 @@ RUN apt-get update \
       ros-jazzy-twist-mux \
       ros-jazzy-rtabmap-ros \
       xvfb \
+      python3-pip \
+      python3-pytest \
  && rm -rf /var/lib/apt/lists/*
+
+# Gymnasium isn't apt-packaged; pip it directly. --break-system-packages
+# is the noble-friendly way to install into the system python — fine
+# inside this single-purpose container.
+RUN pip3 install --no-cache-dir --break-system-packages \
+      "gymnasium>=0.29"
 
 WORKDIR /workspace
 

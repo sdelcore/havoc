@@ -41,7 +41,7 @@ havoc/
 ├── ros/src/havoc_policies/    # BasePolicy + concrete policies (constant, ...)
 ├── ros/src/havoc_bringup/     # autonomous + teleop top-level launches
 ├── sim/                       # Docker images and compose for sim
-├── training/                  # Model training pipeline (Python, TBD)
+├── training/                  # Python — Gymnasium envs + RL (training/README.md)
 ├── .github/workflows/         # CI: lint + ROS build + Zephyr build
 ├── flake.nix                  # Nix dev shell
 └── AGENTS.md                  # Agent guidelines (CLAUDE.md -> symlink)
