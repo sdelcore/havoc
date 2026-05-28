@@ -24,7 +24,11 @@ if `/cmd_vel` stalls >200 ms.
   RGBD camera, IMU, bridged via `ros_gz_bridge`.
 - **Perception**: Intel RealSense D435i → librealsense → ROS 2 topics
   (sim uses Gazebo's RGBD camera plugin in the meantime).
-- **SLAM**: RTAB-Map (per the Autonomy Plan; not yet implemented).
+- **SLAM**: RTAB-Map (visual-inertial, working end-to-end in sim — see
+  `havoc_description/launch/slam.launch.py`).
+- **Policy spine**: `havoc_policies` + `havoc_bringup` — swappable
+  `/cmd_vel` producers (constant, teleop, pure pursuit, Nav2, RL),
+  arbitrated by `twist_mux`.
 - **Pilot model**: TBD (E2E CNN, per the Autonomy Plan).
 - **Training**: Desktop GPU (nightman, 4090).
 
@@ -33,7 +37,9 @@ if `/cmd_vel` stalls >200 ms.
 ```
 havoc/
 ├── mcu/                       # Zephyr firmware for SAM E70 (west/CMake)
-├── ros/src/havoc_description/ # ROS 2 robot model + sim launch + world
+├── ros/src/havoc_description/ # robot model + sim/slam launch + world
+├── ros/src/havoc_policies/    # BasePolicy + concrete policies (constant, ...)
+├── ros/src/havoc_bringup/     # autonomous + teleop top-level launches
 ├── sim/                       # Docker images and compose for sim
 ├── training/                  # Model training pipeline (Python, TBD)
 ├── .github/workflows/         # CI: lint + ROS build + Zephyr build
@@ -54,10 +60,12 @@ builds.
 ## Status
 
 **Active development.** Firmware skeleton complete in sim (publisher,
-subscriber, stall watchdog, status echo). ROS-side has the ackermann
-sim, sensors, and Gazebo test world. SLAM/planning/perception are the
-next major chunks of work — see the Autonomy Plan in `~/Obsidian/sdelcore/Projects/Havoc/`.
-Hardware build is parts-research phase.
+subscriber, stall watchdog, status echo). ROS-side: ackermann sim,
+sensors, Gazebo test world, RTAB-Map SLAM end-to-end, and the policy
+spine (twist_mux + BasePolicy). Next: localization mode, Nav2 adapter,
+and the first RL policy — see the Autonomy Plan in
+`~/Obsidian/sdelcore/Projects/Havoc/`. Hardware build is parts-research
+phase.
 
 ## License
 
