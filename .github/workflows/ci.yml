@@ -257,13 +257,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
       - name: Install training pkg + test deps
         # Pure-Python pieces only — no ROS needed for the observation +
         # reward unit tests. The integration test (env vs running sim)
         # lives in the colcon docker job, not here.
         run: |
           cd training
-          pip install -e .[dev]
+          uv pip install --system -e .[dev]
       - name: pytest
         run: |
           cd training

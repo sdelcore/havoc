@@ -30,15 +30,17 @@ Gazebo imports makes that consistency a static guarantee.
 
 ## Setup
 
-The docker `ros` container already has Python deps and the bind mount
-in place. Inside it:
+The docker `ros` container ships with `uv` and the bind mount in
+place. Inside it:
 
 ```bash
-docker compose exec ros bash -lc 'cd /training && pip install --break-system-packages -e .'
+docker compose exec ros bash -lc 'cd /training && uv pip install -e .'
 ```
 
-(Editable install so iterating on the Python code doesn't need
-re-install.)
+`UV_SYSTEM_PYTHON=1` + `UV_BREAK_SYSTEM_PACKAGES=1` are baked into the
+image, so the install lands in the container's system Python without
+a venv (single-purpose container — venv is just noise). Editable
+install so iterating on the Python code doesn't need re-install.
 
 ## Verify the env contract
 
