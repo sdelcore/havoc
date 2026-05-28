@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>havoc_bringup</name>
+  <version>0.0.1</version>
+  <description>
+    Top-level launch files for Havoc: sim + localization + policy + mux.
+    The "spine" — composes the existing sim and SLAM launches with a
+    chosen driving policy from havoc_policies, arbitrated via twist_mux.
+  </description>
+  <maintainer email="sdelcore@gmail.com">Spencer Delcore</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>havoc_description</exec_depend>
+  <exec_depend>havoc_policies</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
