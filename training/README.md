@@ -70,6 +70,44 @@ finite-differenced between consecutive pose snapshots; `/odom` isn't
 used because the ackermann plugin dead-reckons it and doesn't observe
 teleports.
 
+## Parallel envs
+
+Each parallel env needs its own sim, mux, and DDS partition so they
+don't share `/cmd_vel` or `/havoc/gt_pose`. The mechanism is two env
+vars: `ROS_DOMAIN_ID` (DDS partition for ROS topics) and
+`GZ_PARTITION` (gz transport partition for gz services). Both launch
+files take an `env_id` arg that sets both:
+
+```bash
+ros2 launch havoc_description spawn.launch.py env_id:=1   # sim slot 1
+ros2 launch havoc_bringup autonomous.launch.py env_id:=1  # mux slot 1
+```
+
+Slot 0 is the regular single-sim case (and the default). For N slots,
+use `scripts/launch_parallel_sims.sh`:
+
+```bash
+docker compose exec ros bash -lc 'cd /training && ./scripts/launch_parallel_sims.sh 4'
+```
+
+The training env reads `ROS_DOMAIN_ID` and `GZ_PARTITION` from its
+process environment — no per-env code changes — so when SB3's
+`SubprocVecEnv` lands, each subprocess just sets the env vars before
+importing `havoc_gym` and the right sim slot is connected
+automatically.
+
+To verify parallelism end-to-end:
+
+```bash
+# bring up two sim+mux pairs
+./scripts/launch_parallel_sims.sh 2
+sleep 25
+# run two envs concurrently against them
+python3 scripts/verify_parallel.py --env-ids 0 1 --policy forward
+```
+
+Each env's car drives independently in its own sim.
+
 ## Run the unit tests
 
 ```bash
@@ -80,7 +118,7 @@ Sim not required — these test `observation.py` + `reward.py` directly.
 
 ## What's coming
 
-- v0.2: SAC training script via Stable-Baselines3.
-- v0.3: parallel envs via SubprocVecEnv + per-env `ROS_DOMAIN_ID`.
+- v0.2: SAC training script via Stable-Baselines3 (uses the parallel
+  envs shipped here).
 - v0.4: depth-camera obs (pixels), wider obs space, larger network.
 - v0.5: domain randomization for sim-to-real transfer.
