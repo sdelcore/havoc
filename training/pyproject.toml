@@ -1,0 +1,30 @@
+[project]
+name = "havoc_gym"
+version = "0.0.1"
+description = "Gymnasium environments + RL training scripts for Havoc."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Spencer Delcore", email = "sdelcore@gmail.com" }]
+
+# rclpy + geometry_msgs + nav_msgs come from the system ROS install
+# (sourced from /opt/ros/jazzy/setup.bash). We deliberately do NOT
+# declare them here — pip would try to install them from PyPI and fail.
+dependencies = [
+  "gymnasium>=0.29",
+  "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["havoc_gym*"]
+exclude = ["tests*", "scripts*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

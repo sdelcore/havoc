@@ -11,7 +11,21 @@ RUN apt-get update \
       ros-jazzy-twist-mux \
       ros-jazzy-rtabmap-ros \
       xvfb \
+      python3-pytest \
  && rm -rf /var/lib/apt/lists/*
+
+# Drop in the uv binary from Astral's distroless image — no curl/apt
+# needed, just a binary copy. Used instead of pip for the training/
+# package install; faster and the project standard.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Make `uv pip install ...` target the system Python by default, since
+# this is a single-purpose container — no benefit from a venv.
+ENV UV_SYSTEM_PYTHON=1 \
+    UV_BREAK_SYSTEM_PACKAGES=1
+
+# Gymnasium isn't apt-packaged; uv it directly.
+RUN uv pip install --no-cache "gymnasium>=0.29"
 
 WORKDIR /workspace
 
