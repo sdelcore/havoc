@@ -58,19 +58,17 @@ termination reason. With `--policy forward`, the car will drive
 straight until it crosses the (-4.5, 4.5) arena bound and the episode
 terminates with `oob=True`.
 
-## Known v0 limitation
+## Reset behavior
 
-The env **doesn't reset the simulator** between episodes — it only
-samples a new goal. The next PR (`gz-service reset for HavocSimEnv`)
-will add proper `set_pose` teleport so episode start states are
-controlled.
-
-For now, running the second episode of `verify_env.py` lands the car
-wherever the previous one ended; expect immediate out-of-bounds
-termination on subsequent episodes after the first one drives off the
-edge. This is enough to validate the gym contract; not enough to
-actually train a policy. That's intentional — train-time reset is its
-own PR.
+`reset()` teleports the car to a random pose inside a 1.5 m sub-arena
+and samples a new goal in the 3.5 m goal sub-arena. The teleport uses
+the `/world/havoc_sim/set_pose` gz service via the `gz` CLI (slow but
+runs once per episode). Ground-truth world pose is read from the
+`/havoc/gt_pose` topic — a ros_gz bridge of
+`/world/havoc_sim/dynamic_pose/info` (Pose_V → TFMessage). Velocity is
+finite-differenced between consecutive pose snapshots; `/odom` isn't
+used because the ackermann plugin dead-reckons it and doesn't observe
+teleports.
 
 ## Run the unit tests
 
@@ -82,7 +80,6 @@ Sim not required — these test `observation.py` + `reward.py` directly.
 
 ## What's coming
 
-- v0.1: `gz-service`-based sim reset; clean episode boundaries.
 - v0.2: SAC training script via Stable-Baselines3.
 - v0.3: parallel envs via SubprocVecEnv + per-env `ROS_DOMAIN_ID`.
 - v0.4: depth-camera obs (pixels), wider obs space, larger network.
