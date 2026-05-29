@@ -1,21 +1,7 @@
-"""Pure-Python observation builder. No ROS / no Gazebo dependencies.
+"""Observation builder for the policy.
 
-The same function builds the obs vector at training time (inside the
-Gym env) and at inference time (inside RLPolicy when it ships). Having
-a single source of truth here is what makes the env/policy pair
-correct-by-construction — there's no way for the policy to see a
-differently-shaped obs than what it was trained on.
-
-Obs layout (v0):
-  [x_world, y_world, yaw, vx, vy, dx_goal, dy_goal]
-
-  - position / yaw are in the world (map) frame
-  - velocities are in the world frame
-  - goal delta is goal_xy - position_xy (also world frame)
-
-Why no depth/scan yet: state-based first, vision later. See PR #21
-discussion. Adding depth rays is a tuple-extension here + a wider obs
-space in sim_env.
+Layout (v0):
+  [x, y, yaw, vx, vy, dx_goal, dy_goal]  — world frame, float32
 """
 
 from dataclasses import dataclass

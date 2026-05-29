@@ -1,32 +1,24 @@
 # training — Havoc ML / RL
 
-Gymnasium environments and (eventually) RL training scripts for the
-Havoc autonomous RC car. Standalone Python package — does **not** use
-colcon or live under `ros/`. Brought into the ROS docker container via
-the `../training:/training` bind mount in `sim/docker-compose.yml`.
+Standalone Python package (uv, not colcon). Bind-mounted into the
+docker `ros` container at `/training` via `sim/docker-compose.yml`.
 
-## What's here so far
+## Layout
 
 ```
 training/
-├── pyproject.toml           # pip-installable package "havoc_gym"
+├── pyproject.toml
 ├── havoc_gym/
-│   ├── observation.py       # pure Python — obs builder
-│   ├── reward.py            # pure Python — reward function
-│   └── sim_env.py           # gymnasium env that wraps Gazebo via ROS
-├── scripts/
-│   └── verify_env.py        # sanity-check the env end-to-end
+│   ├── observation.py    # obs builder (no ROS deps)
+│   ├── reward.py         # reward fn (no ROS deps)
+│   └── sim_env.py        # HavocSimEnv: wraps Gazebo via rclpy
+├── scripts/verify_env.py
 └── tests/
-    ├── test_observation.py
-    └── test_reward.py
 ```
 
-The pure-Python pieces (observation, reward) are deliberately
-sim-agnostic — same functions will be reused by a future Isaac env and
-by the inference-side `RLPolicy` when it ships. The thing that's hard
-to get right between training and deploy is *consistency* of obs/reward
-across contexts; keeping them in pure-Python modules with no ROS or
-Gazebo imports makes that consistency a static guarantee.
+`observation.py` and `reward.py` are kept ROS-free so the same
+functions can later back an Isaac env and the inference-side RLPolicy
+unchanged — single source of truth for the obs/reward contract.
 
 ## Setup
 
@@ -86,8 +78,7 @@ own PR.
 docker compose exec ros bash -lc 'cd /training && python3 -m pytest tests/ -v'
 ```
 
-The pure-Python tests don't need a running sim — they verify the
-sim-agnostic observation builder and reward function in isolation.
+Sim not required — these test `observation.py` + `reward.py` directly.
 
 ## What's coming
 

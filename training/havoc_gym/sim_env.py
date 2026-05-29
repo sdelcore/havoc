@@ -1,25 +1,7 @@
-"""HavocSimEnv: Gymnasium env that wraps the running Gazebo sim via ROS.
+"""Gymnasium env wrapping a running Gazebo via ROS topics.
 
-Requirements at runtime:
-  - A Gazebo sim running with the bridge up (spawn.launch.py)
-  - The policy spine running (autonomous.launch.py — gives us the mux,
-    onto whose cmd_vel_rl slot we publish)
-
-What the env does NOT do (yet):
-  - Reset the simulator. v0 just publishes a new random goal each
-    reset(); the car keeps driving from wherever it ended up. A
-    follow-up PR will add gz-service teleport (`set_pose`) plus an
-    /odom reset so reset() truly returns to a known state.
-  - Pause / step the sim. Currently uses real-time stepping with a
-    fixed dt sleep. Faster-than-real-time training comes later.
-  - Run multiple envs in parallel.
-
-What it DOES validate:
-  - The contract: reset/step/obs/reward/terminate, all gym-compliant.
-  - The plumbing: rclpy publish, sub, latest-message buffering, action
-    serialization, observation marshalling.
-  - The sim-agnostic split: observation.py and reward.py are pure
-    Python and shared with the future inference-side policy.
+Requires spawn.launch.py + autonomous.launch.py up; env publishes on
+the mux's cmd_vel_rl slot. v0 does not reset the sim — see README.
 """
 
 from __future__ import annotations

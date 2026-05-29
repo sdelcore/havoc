@@ -1,15 +1,4 @@
-"""Pure-Python reward function. No ROS / no Gazebo dependencies.
-
-Sim-agnostic so it can be:
-  - swapped in/out without touching env plumbing
-  - unit-tested with synthetic inputs (see tests/test_reward.py)
-  - shared with a future Isaac env
-
-The contract: takes "where we were" and "where we are" + the goal, and
-returns a scalar reward + a boolean indicating whether the goal has
-been reached. The env wraps this in step() and handles truncation
-(timeout) separately.
-"""
+"""Step reward: progress to goal + bonus on reach − time − crash."""
 
 from dataclasses import dataclass
 
