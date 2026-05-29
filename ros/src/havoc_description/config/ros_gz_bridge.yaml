@@ -65,3 +65,16 @@
   ros_type_name: "sensor_msgs/msg/JointState"
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
+
+# Ground-truth world pose. Used by the RL training env (HavocSimEnv)
+# because /odom is dead-reckoned by the ackermann plugin and doesn't
+# track gz-service teleports at episode reset. transform[0] in the
+# bridged TFMessage is the havoc model in world frame; subsequent
+# transforms are sub-links. The Pose_V -> TFMessage bridge drops the
+# gz entity names (frame_id/child_frame_id come through empty), but
+# preserves order, and dynamic_pose/info emits the moving entity first.
+- ros_topic_name: "/havoc/gt_pose"
+  gz_topic_name: "/world/havoc_sim/dynamic_pose/info"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
