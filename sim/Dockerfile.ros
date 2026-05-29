@@ -27,6 +27,23 @@ ENV UV_SYSTEM_PYTHON=1 \
 # Gymnasium isn't apt-packaged; uv it directly.
 RUN uv pip install --no-cache "gymnasium>=0.29"
 
+# CPU-only torch (default PyPI ships the CUDA build, ~3 GB). The CPU
+# wheel is ~250 MB. Override with the GPU build by reinstalling torch
+# from a different index if you have an NVIDIA driver.
+RUN uv pip install --no-cache --index-url https://download.pytorch.org/whl/cpu \
+      "torch>=2.0"
+
+# Stable-Baselines3 for the SAC training loop, tensorboard for run
+# logging, opencv-python-headless because SB3 hard-imports cv2
+# (atari_wrappers) at module load — the apt python3-opencv in this
+# image is built against numpy 1.x, which breaks once torch upgrades
+# numpy to 2.x. Headless build is smaller (no GUI deps) and ships its
+# own numpy-2-compatible wheel.
+RUN uv pip install --no-cache \
+      "stable-baselines3>=2.0" \
+      "tensorboard>=2.10" \
+      "opencv-python-headless>=4.8"
+
 WORKDIR /workspace
 
 # Source ROS for both interactive (.bashrc) and login (/etc/profile.d) shells,
