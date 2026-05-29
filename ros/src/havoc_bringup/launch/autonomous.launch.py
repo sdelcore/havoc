@@ -15,13 +15,18 @@ For teleop, run in a separate `docker compose exec -it` shell:
 This launches teleop_twist_keyboard remapped to `cmd_vel_teleop`, which
 the mux picks up at the highest priority — overriding whatever
 autonomous policy is currently driving.
+
+For parallel training envs:
+  ros2 launch havoc_bringup autonomous.launch.py env_id:=1
+The env_id arg sets ROS_DOMAIN_ID + GZ_PARTITION so this mux only sees
+its own sim — must match the env_id passed to spawn.launch.py.
 """
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
@@ -60,6 +65,25 @@ def generate_launch_description():
         description='ConstantPolicy angular velocity (rad/s).',
     )
 
+    env_id_arg = DeclareLaunchArgument(
+        'env_id', default_value='0',
+        description=(
+            'Parallel-env slot. Sets ROS_DOMAIN_ID and GZ_PARTITION so '
+            'this mux only sees its own sim. Must match the env_id '
+            'passed to spawn.launch.py.'
+        ),
+    )
+
+    # Must appear before the Node actions in the LaunchDescription list
+    # so the twist_mux + policy nodes inherit the right domain.
+    set_ros_domain = SetEnvironmentVariable(
+        'ROS_DOMAIN_ID', LaunchConfiguration('env_id'),
+    )
+    set_gz_partition = SetEnvironmentVariable(
+        'GZ_PARTITION',
+        PythonExpression(["'havoc_e' + '", LaunchConfiguration('env_id'), "'"]),
+    )
+
     twist_mux = Node(
         package='twist_mux',
         executable='twist_mux',
@@ -86,6 +110,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        policy_arg, linear_arg, angular_arg,
+        policy_arg, linear_arg, angular_arg, env_id_arg,
+        set_ros_domain, set_gz_partition,
         twist_mux, constant_policy,
     ])

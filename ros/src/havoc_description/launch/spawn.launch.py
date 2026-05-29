@@ -13,13 +13,24 @@ Launch arguments:
     in `xvfb-run -a -- ros2 launch ...`. xvfb gives OGRE a virtual
     display to render to off-screen; the test/test_slam_e2e.py
     integration test does exactly this.
+
+  env_id (default: 0)
+    Isolation slot for running parallel sims. Sets ROS_DOMAIN_ID=<id>
+    so each sim's ROS topics live in their own DDS partition, and
+    GZ_PARTITION=havoc_e<id> so each gz sim's services + transport are
+    isolated. id=0 is the regular single-sim case. autonomous.launch.py
+    accepts the same arg and must match.
 """
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
@@ -40,6 +51,26 @@ def generate_launch_description():
     headless_arg = DeclareLaunchArgument(
         'headless', default_value='false',
         description='If true, run gz sim server-only (-s), no GUI window.',
+    )
+
+    env_id_arg = DeclareLaunchArgument(
+        'env_id', default_value='0',
+        description=(
+            'Parallel-env slot. Sets ROS_DOMAIN_ID and GZ_PARTITION so '
+            'multiple sims can run side-by-side without interfering.'
+        ),
+    )
+
+    # SetEnvironmentVariable affects child processes spawned by this
+    # launch (gz sim, the bridge, etc.). Must appear before the actions
+    # that spawn those children in the LaunchDescription list — launch
+    # processes the list in order.
+    set_ros_domain = SetEnvironmentVariable(
+        'ROS_DOMAIN_ID', LaunchConfiguration('env_id'),
+    )
+    set_gz_partition = SetEnvironmentVariable(
+        'GZ_PARTITION',
+        PythonExpression(["'havoc_e' + '", LaunchConfiguration('env_id'), "'"]),
     )
 
     # When headless=true, the gz_args string becomes "-r -s <world>"
@@ -81,5 +112,9 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        headless_arg, gz_sim, robot_state_publisher, spawn, bridge,
+        headless_arg, env_id_arg,
+        # SetEnvironmentVariable must come before the gz_sim / bridge
+        # actions so they inherit the right domain + partition.
+        set_ros_domain, set_gz_partition,
+        gz_sim, robot_state_publisher, spawn, bridge,
     ])
