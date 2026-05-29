@@ -108,6 +108,51 @@ python3 scripts/verify_parallel.py --env-ids 0 1 --policy forward
 
 Each env's car drives independently in its own sim.
 
+## Train a SAC policy
+
+```bash
+# terminal 1: bring up N parallel sims (here, 4)
+docker compose exec ros bash -lc \
+  'cd /training && ./scripts/launch_parallel_sims.sh 4'
+
+# terminal 2 (after ~25 s): start training
+docker compose exec ros bash -lc \
+  'cd /training && python3 scripts/train.py \
+     --n-envs 4 \
+     --total-timesteps 200_000 \
+     --save-dir models/sac_v1 \
+     --tb-dir runs/sac_v1'
+
+# terminal 3 (optional): watch tensorboard
+docker compose exec ros bash -lc \
+  'tensorboard --logdir /training/runs --bind_all'
+# then open http://localhost:6006 on the host
+```
+
+At dt=0.1 each env runs ~10 steps/sec real-time, so 4 envs ≈ 40
+aggregate steps/sec. 200K timesteps takes ~80 min wall. Faster
+training requires gz pause/step in the env (deferred PR).
+
+## Evaluate a checkpoint
+
+```bash
+# terminal 1: single sim + mux
+docker compose exec ros bash -lc \
+  'source install/setup.bash && ros2 launch havoc_description spawn.launch.py' &
+docker compose exec ros bash -lc \
+  'source install/setup.bash && ros2 launch havoc_bringup autonomous.launch.py' &
+
+# terminal 2: roll out 10 episodes from the trained policy
+docker compose exec ros bash -lc \
+  'cd /training && python3 scripts/eval.py \
+     --checkpoint models/sac_v1/sac_final.zip \
+     --episodes 10'
+```
+
+Prints per-episode return, steps, final goal distance, plus aggregate
+success rate. `eval.py` connects to env_id 0 by default; use
+`--env-id N` if your trained sims live elsewhere.
+
 ## Run the unit tests
 
 ```bash
@@ -118,7 +163,7 @@ Sim not required — these test `observation.py` + `reward.py` directly.
 
 ## What's coming
 
-- v0.2: SAC training script via Stable-Baselines3 (uses the parallel
-  envs shipped here).
 - v0.4: depth-camera obs (pixels), wider obs space, larger network.
 - v0.5: domain randomization for sim-to-real transfer.
+- Beyond: gz pause/step for faster-than-real-time training, GPU torch
+  for the nightman 4090.

@@ -9,3 +9,11 @@ ros/log/
 # Python
 __pycache__/
 *.pyc
+
+# Training artifacts — checkpoints, tensorboard logs, replay buffers.
+# Models are regenerable from train.py; logs are per-run.
+training/models/
+training/runs/
+
+# Claude Code local agent state
+.claude/
